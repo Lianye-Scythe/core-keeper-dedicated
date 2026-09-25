@@ -1,11 +1,12 @@
 ###########################################################
 # Dockerfile that builds a Core Keeper Gameserver
 ###########################################################
-FROM cm2network/steamcmd:root AS base-amd64
-FROM --platform=arm64 sonroyaalmerol/steamcmd-arm64:root-2026-02-15 AS base-arm64
+FROM cm2network/steamcmd:root-bookworm AS base-amd64
+FROM sonroyaalmerol/steamcmd-arm64:root-bookworm-2026-07-19 AS base-arm64
 
 ARG TARGETARCH
 FROM base-${TARGETARCH}
+ARG TARGETARCH
 
 LABEL maintainer="leandro.martin@protonmail.com"
 
@@ -16,9 +17,7 @@ ENV STEAMAPPDIR="${HOMEDIR}/${STEAMAPP}-dedicated"
 ENV STEAMAPPDATADIR="${HOMEDIR}/${STEAMAPP}-data"
 ENV SCRIPTSDIR="${HOMEDIR}/scripts"
 ENV MODSDIR="${STEAMAPPDIR}/CoreKeeperServer_Data/StreamingAssets/Mods"
-ENV DLURL=https://raw.githubusercontent.com/escapingnetwork/core-keeper-dedicated
 
-ARG TARGETARCH
 RUN case "${TARGETARCH}" in \
     "amd64") dpkg --add-architecture i386 ;; \
     esac
@@ -40,10 +39,10 @@ RUN set -x \
     && rm -rf /var/lib/apt/lists/*
 
 RUN case "${TARGETARCH}" in \
-    "arm64") dpkg --add-architecture amd64 \ 
+    "arm64") dpkg --add-architecture amd64 \
         && apt-get update \
         && apt-get install -y --no-install-recommends --no-install-suggests \
-            libmonosgen-2.0-dev:amd64 \ 
+            libmonosgen-2.0-dev:amd64 \
             libdbus-1-3 \
             libxcursor1 \
             libxinerama1 \
@@ -95,19 +94,21 @@ RUN set -x \
 # Declare envs and their default values
 ENV PUID=1000 \
     PGID=1000 \
-    USE_DEPOT_DOWNLOADER=false \
+    USE_DEPOT_DOWNLOADER=true \
     WORLD_INDEX=0 \
     WORLD_NAME="Core Keeper Server" \
     WORLD_SEED="" \
     WORLD_MODE=0 \
     GAME_ID="" \
     DATA_PATH="${STEAMAPPDATADIR}" \
-    MAX_PLAYERS=10 \
+    MAX_PLAYERS=8 \
     SEASON="" \
     SERVER_IP="" \
     SERVER_PORT="" \
-    PASSWORD="" \
     ACTIVATE_ALL_CONTENT=false \
+    UPDATE_GATE_ENABLED=false \
+    UPDATE_PERMIT_FILE="/run/corekeeper-update/apply-update" \
+    UPDATE_PERMIT_MAX_AGE_SECONDS=3600 \
     ALLOW_ONLY_PLATFORM="" \
     DISCORD_WEBHOOK_URL="" \
     # Player Join
@@ -132,7 +133,6 @@ ENV PUID=1000 \
     DISCORD_SERVER_STOP_COLOR="12779520" \
     # Mods
     MODS_ENABLED=false \
-    MODIO_API_KEY="" \
     MODIO_API_URL="" \
     MODS=""
 

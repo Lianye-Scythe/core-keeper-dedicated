@@ -35,6 +35,8 @@ source "${SCRIPTSDIR}/compile-parameters.sh"
 
 # Create the log file and folder.
 mkdir -p "${STEAMAPPDIR}/logs"
+# `compile-parameters.sh` sets logfile and params in the current shell.
+# shellcheck disable=SC2154
 touch "$logfile"
 
 # Start Xvfb
@@ -46,6 +48,8 @@ architecture=$(dpkg --print-architecture)
 
 # Start Core Keeper Server
 if [ "$architecture" == "arm64" ]; then
+    # `compile-parameters.sh` sets params in the current shell.
+    # shellcheck disable=SC2154
     DISPLAY=:99 LD_LIBRARY_PATH="${STEAMCMDDIR}/linux64:/usr/lib:${LD_LIBRARY_PATH#:}" /usr/local/bin/box64 ./CoreKeeperServer "${params[@]}" &
 else
     DISPLAY=:99 LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${STEAMCMDDIR}/linux64/" ./CoreKeeperServer "${params[@]}" &

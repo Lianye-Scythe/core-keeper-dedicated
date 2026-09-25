@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+CONFIG_FILE="${COREKEEPER_UPDATE_CONFIG:-/etc/corekeeper-update-check.conf}"
+if [[ ! -r "${CONFIG_FILE}" ]]; then
+    echo "Cannot read update-check configuration: ${CONFIG_FILE}" >&2
+    exit 1
+fi
+# This is an administrator-owned configuration file, installed with root ownership.
+# shellcheck source=/dev/null
+source "${CONFIG_FILE}"
+
+CONTAINER_NAME="${CONTAINER_NAME:-core-keeper-dedicated}"
+SERVER_DATA_DIR="${SERVER_DATA_DIR:?Set SERVER_DATA_DIR to the host server-data volume}"
+BACKUP_DIR="${BACKUP_DIR:?Set BACKUP_DIR to a directory outside SERVER_DATA_DIR}"
+CONTROL_DIR="${CONTROL_DIR:?Set CONTROL_DIR to the host directory mounted into the container}"
+UPDATE_BUILD_ID_FILE="${UPDATE_BUILD_ID_FILE:-${SERVER_DATA_DIR}/steam-buildid}"
+CONTAINER_GAME_ID_FILE="${CONTAINER_GAME_ID_FILE:-/home/steam/core-keeper-dedicated/GameID.txt}"
+UPDATE_PERMIT_FILE="${UPDATE_PERMIT_FILE:-${CONTROL_DIR}/apply-update}"
+CONTAINER_PERMIT_PATH="${CONTAINER_PERMIT_PATH:-/run/corekeeper-update/apply-update}"
+APP_INFO_URL="${APP_INFO_URL:-https://api.steamcmd.net/v1/info/1963720}"
+TIME_ZONE="${TIME_ZONE:-Asia/Taipei}"
+MAINTENANCE_HOUR="${MAINTENANCE_HOUR:-17}"
+BACKUP_KEEP="${BACKUP_KEEP:-2}"
+LOCK_FILE="${LOCK_FILE:-/run/lock/corekeeper-update-check.lock}"
+
+log() {
+    if command -v logger >/dev/null 2>&1; then
+        logger -t corekeeper-update-check -- "$*" || true
+    fi
+    printf '%s %s\n' "$(TZ="${TIME_ZONE}" date '+%F %T')" "$*"
+}
+
+if [[ ! "${MAINTENANCE_HOUR}" =~ ^([01][0-9]|2[0-3])$ ]]; then
+    log "MAINTENANCE_HOUR must be an hour from 00 to 23."
+    exit 2
+fi
+if [[ ! "${BACKUP_KEEP}" =~ ^[12]$ ]]; then
+    log "BACKUP_KEEP must be 1 or 2 to bound backup storage."
+    exit 2
+fi
+for tool in curl jq docker tar flock; do
+    if ! command -v "${tool}" >/dev/null 2>&1; then
+        log "Required command not found: ${tool}"
+        exit 1
+    fi
+done
+
+exec 9>"${LOCK_FILE}"
+if ! flock -n 9; then
+    log "Another update check is running; skipping this tick."
+    exit 0
+fi
+
+mkdir -p "${BACKUP_DIR}" "${CONTROL_DIR}"
+latest_build="$(curl --fail --silent --show-error --max-time 30 "${APP_INFO_URL}" \
+    | jq -er '.data["1963720"].depots.branches.public.buildid | select(type == "string" and test("^[0-9]+$"))')" || {
+    log "Could not read the public Steam build ID; failing closed without restarting."
+    exit 1
+}
+
+installed_build=""
+if [[ -r "${UPDATE_BUILD_ID_FILE}" ]]; then
+    installed_build="$(<"${UPDATE_BUILD_ID_FILE}")"
+fi
+if [[ -n "${installed_build}" && ! "${installed_build}" =~ ^[0-9]+$ ]]; then
+    log "Installed build state is invalid; refusing an automatic restart."
+    exit 1
+fi
+if [[ "${latest_build}" == "${installed_build}" ]]; then
+    log "No public server update: build ${installed_build}."
+    exit 0
+fi
+
+log "Update detected: installed=${installed_build:-unknown}, available=${latest_build}."
+local_hour="$(TZ="${TIME_ZONE}" date '+%H')"
+if [[ "${local_hour}" != "${MAINTENANCE_HOUR}" ]]; then
+    log "Update queued for the next ${TIME_ZONE} ${MAINTENANCE_HOUR}:00 maintenance window."
+    exit 0
+fi
+
+if ! docker inspect "${CONTAINER_NAME}" >/dev/null 2>&1; then
+    log "Container ${CONTAINER_NAME} was not found; refusing to proceed."
+    exit 1
+fi
+if ! docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${CONTAINER_NAME}" \
+    | grep -Fxq "UPDATE_GATE_ENABLED=true"; then
+    log "UPDATE_GATE_ENABLED=true is not set in the container; refusing an uncontrolled update."
+    exit 1
+fi
+if ! docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${CONTAINER_NAME}" \
+    | grep -Fxq "UPDATE_PERMIT_FILE=${CONTAINER_PERMIT_PATH}"; then
+    log "Container UPDATE_PERMIT_FILE does not match ${CONTAINER_PERMIT_PATH}; refusing to proceed."
+    exit 1
+fi
+if [[ ! -d "${SERVER_DATA_DIR}" ]]; then
+    log "Server data directory does not exist: ${SERVER_DATA_DIR}"
+    exit 1
+fi
+
+log "Starting scheduled maintenance: graceful stop, full server-data backup, then update/start."
+if [[ "$(docker inspect --format '{{.State.Running}}' "${CONTAINER_NAME}")" == true ]]; then
+    docker stop --time 120 "${CONTAINER_NAME}" >/dev/null
+fi
+
+backup_name="corekeeper-server-data-$(TZ="${TIME_ZONE}" date '+%Y%m%d-%H%M%S').tar.gz"
+backup_path="${BACKUP_DIR}/${backup_name}"
+if ! tar --numeric-owner -czf "${backup_path}" -C "${SERVER_DATA_DIR}" . \
+    || ! tar -tzf "${backup_path}" >/dev/null; then
+    log "Backup failed; the server remains stopped and no update permit was issued: ${backup_path}"
+    exit 1
+fi
+
+mapfile -d '' -t old_backups < <(
+    find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'corekeeper-server-data-*.tar.gz' \
+        -printf '%T@ %p\0' | sort -z -nr | cut -z -d' ' -f2-
+)
+for ((index=BACKUP_KEEP; index<${#old_backups[@]}; index++)); do
+    rm -f -- "${old_backups[index]}"
+done
+log "Created verified full server-data backup ${backup_path}; retained ${BACKUP_KEEP} newest backup(s)."
+
+permit_tmp="${UPDATE_PERMIT_FILE}.tmp.$$"
+date +%s >"${permit_tmp}"
+mv -f "${permit_tmp}" "${UPDATE_PERMIT_FILE}"
+if ! docker start "${CONTAINER_NAME}" >/dev/null; then
+    log "Could not start ${CONTAINER_NAME}; the update permit remains available until it expires."
+    exit 1
+fi
+
+restart_count="$(docker inspect --format '{{.RestartCount}}' "${CONTAINER_NAME}")"
+ready=false
+for ((attempt=0; attempt<60; attempt++)); do
+    if [[ "$(docker inspect --format '{{.State.Running}}' "${CONTAINER_NAME}" 2>/dev/null || true)" == true ]] \
+        && [[ "$(docker inspect --format '{{.RestartCount}}' "${CONTAINER_NAME}" 2>/dev/null || true)" == "${restart_count}" ]] \
+        && docker exec "${CONTAINER_NAME}" test -s "${CONTAINER_GAME_ID_FILE}" >/dev/null 2>&1; then
+        ready=true
+        break
+    fi
+    sleep 15
+done
+
+if [[ "${ready}" == true ]]; then
+    mkdir -p "$(dirname "${UPDATE_BUILD_ID_FILE}")"
+    build_id_tmp="${UPDATE_BUILD_ID_FILE}.tmp.$$"
+    printf '%s\n' "${latest_build}" >"${build_id_tmp}"
+    mv -f "${build_id_tmp}" "${UPDATE_BUILD_ID_FILE}"
+    log "Update applied; the server is ready and build ${latest_build} was recorded."
+    exit 0
+fi
+
+rm -f "${UPDATE_PERMIT_FILE}"
+log "Container started but the server did not reach GameID-ready state. Check Docker logs; the next hourly check will retry at the next maintenance window."
+exit 1

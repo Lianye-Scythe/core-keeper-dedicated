@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly Core Keeper update check with a scheduled maintenance window
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+AccuracySec=1min
+Unit=corekeeper-update-check.service
+
+[Install]
+WantedBy=timers.target

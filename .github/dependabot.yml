@@ -1,5 +1,10 @@
 version: 2
 updates:
+  # Keep the SteamCMD base image references current.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
   # Maintain dependencies for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
