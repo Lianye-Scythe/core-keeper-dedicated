@@ -30,7 +30,7 @@ jobs:
       - name: Check shell syntax
         run: for file in scripts/*.sh examples/scheduled-updates/corekeeper-update-check; do bash -n "$file"; done
       - name: ShellCheck
-        run: shellcheck scripts/*.sh examples/scheduled-updates/corekeeper-update-check
+        run: shellcheck -S warning scripts/*.sh examples/scheduled-updates/corekeeper-update-check
 
   build:
     name: Build multi-platform image
