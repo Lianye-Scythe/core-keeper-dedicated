@@ -156,6 +156,8 @@ For example, if `PUID=1000` and `PGID=1000`, create it with `sudo install -d -o 
 
 Then install the example checker and systemd units from `examples/scheduled-updates/`. Copy `corekeeper-update-check.conf.example` to `/etc/corekeeper-update-check.conf`, edit its host paths and container name, and make sure its `UPDATE_BUILD_ID_FILE`, `UPDATE_PERMIT_FILE`, and `CONTAINER_PERMIT_PATH` correspond to the Compose settings above. `UPDATE_BUILD_ID_FILE` is maintained by the host checker only after the server starts successfully. From the repository root, install the files with:
 
+The host needs systemd, rootful Docker, `curl`, `jq`, `tar`, and `flock` (from `util-linux`). On Debian/Ubuntu, install the missing utilities with `sudo apt-get install curl jq tar util-linux`.
+
 ```sh
 sudo install -o root -g root -m 0755 examples/scheduled-updates/corekeeper-update-check /usr/local/sbin/corekeeper-update-check
 sudo install -o root -g root -m 0644 examples/scheduled-updates/corekeeper-update-check.service /etc/systemd/system/
