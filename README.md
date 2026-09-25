@@ -9,7 +9,7 @@ Explore an endless cavern of creatures, relics and resources in a mining sandbox
 ## Supported tags and respective `Dockerfile` links
 - [`ghcr.io/lianye-scythe/core-keeper-dedicated:latest` (*Dockerfile*)](./Dockerfile)
 
-The fork publishes multi-platform images to GHCR on pushes to `main` and daily rebuilds. After the first successful publish, set the GHCR package visibility to **Public** if the VPS should pull it without registry credentials; otherwise authenticate Docker on the VPS with a GitHub token that can read packages.
+The fork publishes multi-platform images to GHCR on pushes to `main` and daily rebuilds. The image uses Debian 12 Bookworm to prioritize the supported LTS line over a major-version switch; each image build refreshes APT metadata and installs available Bookworm package upgrades. After the first successful publish, set the GHCR package visibility to **Public** if the VPS should pull it without registry credentials; otherwise authenticate Docker on the VPS with a GitHub token that can read packages.
 
 ## How to run
 
@@ -92,7 +92,7 @@ These are the arguments you can use to customize server behavior with default va
 | :---:   | :---: | :---: |
 | PUID | 1000 | The user ID on the host that the container should use for file ownership and permissions. |
 | PGID | 1000 | The group ID on the host that the container should use for file ownership and permissions. |
-| ARM64_DEVICE | generic | The Box64 build variants. Accepts `generic`, `rpi5`, `m1` and `adlink`. |
+| ARM64_DEVICE | generic | The Box64 build variants. Accepts `generic`, `rpi3`, `rpi4-pre3`, `rpi5`, `rpi5_16k`, `m1` and `adlink`. |
 | USE_DEPOT_DOWNLOADER | true | Use the native DepotDownloader build instead of SteamCMD. Recommended for ARM64 hosts. |
 | WORLD_INDEX | 0 | Which world index to use. |
 | WORLD_NAME | "Core Keeper Server" | The name to use for the server. |
