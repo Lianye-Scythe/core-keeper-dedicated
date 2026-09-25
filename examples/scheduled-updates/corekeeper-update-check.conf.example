@@ -1,0 +1,17 @@
+# Paths on the Docker host (not paths inside the container).
+CONTAINER_NAME=core-keeper-dedicated
+SERVER_DATA_DIR=/srv/corekeeper/server-data
+BACKUP_DIR=/srv/corekeeper/backups
+CONTROL_DIR=/srv/corekeeper/update-control
+UPDATE_BUILD_ID_FILE=/srv/corekeeper/server-data/steam-buildid
+CONTAINER_GAME_ID_FILE=/home/steam/core-keeper-dedicated/GameID.txt
+
+# These values must match the container's environment and bind mount.
+CONTAINER_PERMIT_PATH=/run/corekeeper-update/apply-update
+UPDATE_PERMIT_FILE=/srv/corekeeper/update-control/apply-update
+
+# Check hourly; when a newer public build is found, update only at this local time.
+APP_INFO_URL=https://api.steamcmd.net/v1/info/1963720
+TIME_ZONE=Asia/Taipei
+MAINTENANCE_HOUR=17
+BACKUP_KEEP=2

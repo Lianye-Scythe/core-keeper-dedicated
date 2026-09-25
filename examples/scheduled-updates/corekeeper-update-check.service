@@ -1,0 +1,9 @@
+[Unit]
+Description=Check Core Keeper Dedicated Server for a public Steam update
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+Environment=COREKEEPER_UPDATE_CONFIG=/etc/corekeeper-update-check.conf
+ExecStart=/usr/local/sbin/corekeeper-update-check

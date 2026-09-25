@@ -1,6 +1,6 @@
 services:
   core-keeper:
-    image: escaping/core-keeper-dedicated:latest
+    image: ghcr.io/lianye-scythe/core-keeper-dedicated:latest
     container_name: core-keeper-dedicated
     restart: unless-stopped
     stop_grace_period: 2m
@@ -10,6 +10,7 @@ services:
     volumes:
       - /host/path/to/server-files:/home/steam/core-keeper-dedicated
       - /host/path/to/server-data:/home/steam/core-keeper-data
+      - /host/path/to/update-control:/run/corekeeper-update:rw
     env_file:
       - path: core.env
         required: false
