@@ -11,6 +11,10 @@ Explore an endless cavern of creatures, relics and resources in a mining sandbox
 
 The fork publishes multi-platform images to GHCR on pushes to `main` and daily rebuilds. The image uses Debian 12 Bookworm to prioritize the supported LTS line over a major-version switch; each image build refreshes APT metadata and installs available Bookworm package upgrades. After the first successful publish, set the GHCR package visibility to **Public** if the VPS should pull it without registry credentials; otherwise authenticate Docker on the VPS with a GitHub token that can read packages.
 
+## Automated maintenance
+
+Dependabot checks Docker and GitHub Actions dependencies daily. Patch and minor updates are queued for auto-merge only after the required multi-platform build and shell checks pass; major-version updates remain open for manual review. The `main` branch requires pull requests and both checks. VPS deployments can poll the published image and apply content changes during a local maintenance window; rebuild-time metadata changes alone should not require a restart.
+
 ## How to run
 
 ### ARM based configuration
