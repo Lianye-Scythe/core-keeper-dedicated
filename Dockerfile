@@ -23,9 +23,11 @@ RUN case "${TARGETARCH}" in \
     esac
 
 # Install Core Keeper server dependencies and clean up
+ARG APT_REFRESH_NONCE=manual
 RUN set -x \
+    && echo "Refreshing Bookworm packages (cache nonce: ${APT_REFRESH_NONCE})" \
     && apt-get update \
-    && apt-get install -y --no-install-recommends --no-install-suggests \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-install-suggests \
         xvfb \
         libxi6 \
         tini \
@@ -36,6 +38,7 @@ RUN set -x \
         gettext-base \
         unzip \
         wget \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confold" upgrade -y --with-new-pkgs \
     && rm -rf /var/lib/apt/lists/*
 
 RUN case "${TARGETARCH}" in \
