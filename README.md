@@ -70,6 +70,7 @@ services:
     volumes:
       - /host/path/to/server-files:/home/steam/core-keeper-dedicated
       - /host/path/to/server-data:/home/steam/core-keeper-data
+      - /host/path/to/box64-cache:/home/steam/.cache/box64
     env_file:
       - path: core.env
         required: false
@@ -96,6 +97,11 @@ These are the arguments you can use to customize server behavior with default va
 | :---:   | :---: | :---: |
 | PUID | 1000 | The user ID on the host that the container should use for file ownership and permissions. |
 | PGID | 1000 | The group ID on the host that the container should use for file ownership and permissions. |
+| REPAIR_PERMISSIONS | false | Use true for one startup after importing files with different ownership, then remove the override. Normally ownership is initialized once per PUID/PGID, avoiding recursive scans on each restart. |
+| BOX64_DYNACACHE | 1 | Enable Box64's dynamic recompilation cache on ARM64. |
+| BOX64_DYNACACHE_FOLDER | `/home/steam/.cache/box64` | Bind-mount this directory to retain cache across container replacement. Cache is disposable and should not be included in world backups. |
+| BOX64_DYNACACHE_LIMIT | 2048 | Cache retention limit in MiB (2 GiB). Not a reserved allocation or strict filesystem quota; Box64 removes old cache when writing new cache. |
+| BOX64_DYNACACHE_COMPRESS | 1 | Default fast compression. Cache may reduce repeated translation work; startup improvements depend on the workload. |
 | ARM64_DEVICE | generic | The Box64 build variants. Accepts `generic`, `rpi3`, `rpi4-pre3`, `rpi5`, `rpi5_16k`, `m1` and `adlink`. |
 | USE_DEPOT_DOWNLOADER | true | Use the native DepotDownloader build instead of SteamCMD. Recommended for ARM64 hosts. |
 | WORLD_INDEX | 0 | Which world index to use. |

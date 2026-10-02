@@ -10,6 +10,7 @@ services:
     volumes:
       - /host/path/to/server-files:/home/steam/core-keeper-dedicated
       - /host/path/to/server-data:/home/steam/core-keeper-data
+      - /host/path/to/box64-cache:/home/steam/.cache/box64
       - /host/path/to/update-control:/run/corekeeper-update:rw
     env_file:
       - path: core.env
