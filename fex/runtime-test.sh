@@ -70,7 +70,7 @@ start)
     [[ -n $image ]] || { echo 'Supply a verified immutable fex-<commit> image.' >&2; exit 1; }
     docker image inspect "$image" >/dev/null
     if [[ $runtime == fex ]]; then
-        [[ $(docker image inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$image" | rg '^COREKEEPER_RUNTIME=fex$') ]]
+        [[ $(docker image inspect -f '{{range .Config.Env}}{{if eq . "COREKEEPER_RUNTIME=fex"}}yes{{end}}{{end}}' "$image") == yes ]]
     fi
     # Preserve stopped-container logs before replacing only this exact test container.
     if docker inspect "$TEST" >/dev/null 2>&1; then

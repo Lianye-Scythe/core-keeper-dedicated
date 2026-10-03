@@ -1,7 +1,8 @@
 # Experimental FEX ARM64 variant
 
 This variant does not replace `latest` (Box64). Build/publish uses only `fex-test`
-and immutable `fex-<commit>` tags. Start with an immutable tag for an A/B test.
+and commit-labelled `fex-<commit>` tags. After pulling, use its `@sha256:...`
+digest for an exact A/B build: rebuilding the same commit can refresh dependencies.
 
 The native ARM64 container and guest RootFS use Ubuntu 24.04 LTS. FEX comes from
 the official `ppa:fex-emu/fex` (`fex-emu-armv8.2`); package versions are refreshed
@@ -39,7 +40,7 @@ Preparation and test-switching on the managed VPS use `runtime-test.sh`:
 sudo bash runtime-test.sh prepare
 # Pull a smoke-tested immutable image, then supply its exact tag:
 sudo docker pull ghcr.io/lianye-scythe/core-keeper-dedicated:fex-<commit>
-sudo bash runtime-test.sh start fex ghcr.io/lianye-scythe/core-keeper-dedicated:fex-<commit>
+sudo bash runtime-test.sh start fex ghcr.io/lianye-scythe/core-keeper-dedicated@sha256:<digest>
 sudo bash runtime-test.sh status
 sudo bash runtime-test.sh stop
 sudo bash runtime-test.sh start box64
