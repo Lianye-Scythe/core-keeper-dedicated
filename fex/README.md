@@ -6,7 +6,7 @@ and immutable `fex-<commit>` tags. Start with an immutable tag for an A/B test.
 The native ARM64 container and guest RootFS use Ubuntu 24.04 LTS. FEX comes from
 the official `ppa:fex-emu/fex` (`fex-emu-armv8.2`); package versions are refreshed
 when building, not modified on game startup. The official RootFS manifest selects
-its current Ubuntu 24.04 SquashFS, validates the published xxHash64, and records
+its current Ubuntu 24.04 SquashFS, validates the published XXH3-64, and records
 the URL/hash/SHA-256 in `/opt/fex-rootfs-source.json`.
 
 An extracted RootFS avoids FUSE/privileged mounts. No host binfmt registration,

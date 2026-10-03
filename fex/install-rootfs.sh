@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-# Use the official fetcher's manifest and xxHash64 integrity check, not an old
+# Use the official fetcher's manifest and XXH3-64 integrity check, not an old
 # third-party RootFS URL. Record SHA-256 as additional build provenance.
 destination="${1:?Usage: install-rootfs.sh DESTINATION}"
 curl --fail --location --retry 3 --connect-timeout 15 --max-time 60 \
@@ -15,7 +15,12 @@ hash="$(jq -r '.Hash' <<<"${selection}")"
 [[ "${hash}" =~ ^[0-9a-fA-F]{1,16}$ ]]
 curl --fail --location --retry 3 --connect-timeout 15 --max-time 1200 \
     "${url}" -o /tmp/fex-rootfs.sqsh
-printf '%016x  %s\n' "0x${hash}" /tmp/fex-rootfs.sqsh | xxhsum -c -
+expected="$(printf '%016x' "0x${hash}")"
+actual="$(xxhsum -H3 /tmp/fex-rootfs.sqsh | awk '{print $NF}')"
+[[ "${actual,,}" == "${expected,,}" ]] || {
+    echo "RootFS XXH3-64 mismatch: expected ${expected}, received ${actual}" >&2
+    exit 1
+}
 sha="$(sha256sum /tmp/fex-rootfs.sqsh | cut -d ' ' -f 1)"
 jq -n --argjson source "${selection}" --arg sha256 "${sha}" \
     '{source:$source,sha256:$sha256}' > /opt/fex-rootfs-source.json
