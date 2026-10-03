@@ -1,0 +1,65 @@
+name: FEX experimental image
+
+on:
+  push:
+    branches: [main, feat/fex-test]
+    paths: ['fex/**', 'scripts/**', 'tests/**', '.github/workflows/fex-image.yml']
+  pull_request:
+    branches: [main]
+    paths: ['fex/**', 'scripts/**', 'tests/**', '.github/workflows/fex-image.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: fex-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fex:
+    name: Build and smoke-test FEX ARM64
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Shell checks
+        run: |
+          for file in scripts/*.sh fex/*.sh tests/*.sh; do bash -n "$file"; done
+          shellcheck -S warning scripts/*.sh fex/*.sh tests/*.sh
+      - uses: docker/setup-buildx-action@v4.4.1
+      - uses: docker/login-action@v4.6.0
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build (no publication before smoke test)
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          file: fex/Dockerfile
+          platforms: linux/arm64
+          load: true
+          tags: corekeeper-fex:check
+          build-args: APT_REFRESH_NONCE=${{ github.run_id }}
+          cache-from: type=gha,scope=fex
+          cache-to: type=gha,scope=fex,mode=max
+      - name: Native guest and entry smoke tests
+        run: |
+          docker run --rm --network none --entrypoint bash -v "$PWD:/test-repo:ro" \
+            corekeeper-fex:check /test-repo/tests/fex-image-smoke.sh
+          docker run --rm --network none --entrypoint bash -v "$PWD:/test-repo:ro" \
+            -v "$PWD/tests/setup-stub.sh:/home/steam/scripts/setup.sh:ro" \
+            corekeeper-fex:check /test-repo/tests/entry-smoke.sh
+      - name: Publish only experimental tags
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          image="${IMAGE,,}"
+          docker tag corekeeper-fex:check "$image:fex-test"
+          docker tag corekeeper-fex:check "$image:fex-${COMMIT}"
+          docker push "$image:fex-${COMMIT}"
+          docker push "$image:fex-test"

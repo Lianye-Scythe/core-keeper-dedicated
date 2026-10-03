@@ -5,6 +5,11 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+  # Track the separate LTS base image for experimental FEX builds.
+  - package-ecosystem: "docker"
+    directory: "/fex"
+    schedule:
+      interval: "daily"
   # Maintain dependencies for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"

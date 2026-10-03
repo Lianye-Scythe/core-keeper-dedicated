@@ -48,9 +48,25 @@ architecture=$(dpkg --print-architecture)
 
 # Start Core Keeper Server
 if [ "$architecture" == "arm64" ]; then
+    runtime="${COREKEEPER_RUNTIME:-box64}"
+    case "${runtime}" in
+        box64) emulator=/usr/local/bin/box64 ;;
+        fex)
+            emulator=/usr/bin/FEX
+            if [[ "${USE_DEPOT_DOWNLOADER}" != true || ! -d "${FEX_ROOTFS:-}" ]]; then
+                LogError "FEX requires DepotDownloader and an extracted FEX_ROOTFS."
+                exit 1
+            fi
+            ;;
+        *) LogError "Unsupported COREKEEPER_RUNTIME: ${runtime}"; exit 1 ;;
+    esac
+    if [[ ! -x "${emulator}" ]]; then
+        LogError "Emulator is missing: ${emulator}"
+        exit 1
+    fi
     # `compile-parameters.sh` sets params in the current shell.
     # shellcheck disable=SC2154
-    DISPLAY=:99 LD_LIBRARY_PATH="${STEAMCMDDIR}/linux64:/usr/lib:${LD_LIBRARY_PATH#:}" /usr/local/bin/box64 ./CoreKeeperServer "${params[@]}" &
+    DISPLAY=:99 LD_LIBRARY_PATH="${STEAMCMDDIR}/linux64:/usr/lib:${LD_LIBRARY_PATH#:}" "${emulator}" ./CoreKeeperServer "${params[@]}" &
 else
     DISPLAY=:99 LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${STEAMCMDDIR}/linux64/" ./CoreKeeperServer "${params[@]}" &
 fi
