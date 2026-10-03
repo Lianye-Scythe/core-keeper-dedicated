@@ -40,6 +40,7 @@ ENV USER=steam HOMEDIR=/home/steam HOME=/home/steam \
     MODSDIR=/home/steam/core-keeper-dedicated/CoreKeeperServer_Data/StreamingAssets/Mods \
     COREKEEPER_RUNTIME=fex FEX_ROOTFS=/opt/fex-rootfs \
     FEX_APP_CACHE_LOCATION=/home/steam/.cache/fex/ \
+    BOX64_DYNACACHE_FOLDER=/home/steam/.cache/box64 \
     PUID=1000 PGID=1000 USE_DEPOT_DOWNLOADER=true DEBUG=false \
     WORLD_INDEX=0 WORLD_NAME="Core Keeper FEX Test" WORLD_SEED="" WORLD_MODE=0 \
     HASHED_WORLD_SEED="" GAME_ID="" MAX_PLAYERS=8 SEASON="" \
