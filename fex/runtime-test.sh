@@ -72,6 +72,14 @@ start)
     if [[ $runtime == fex ]]; then
         [[ $(docker image inspect -f '{{range .Config.Env}}{{if eq . "COREKEEPER_RUNTIME=fex"}}yes{{end}}{{end}}' "$image") == yes ]]
     fi
+    runtime_env=()
+    if [[ $runtime == fex ]]; then
+        case ${FEX_TEST_SMC_MODE:-mtrack} in
+            mtrack) runtime_env+=(-e FEX_SMCCHECKS=1) ;;
+            full) runtime_env+=(-e FEX_SMCCHECKS=2) ;;
+            *) echo 'FEX_TEST_SMC_MODE must be mtrack or full (never none).' >&2; exit 1 ;;
+        esac
+    fi
     # Preserve stopped-container logs before replacing only this exact test container.
     if docker inspect "$TEST" >/dev/null 2>&1; then
         docker logs --timestamps "$TEST" > "$BASE/previous-container.log" 2>&1 || true
@@ -82,7 +90,7 @@ start)
     [[ $runtime != fex ]] || cache_target=/home/steam/.cache/fex
     test_id=$(jq -r .gameId "$BASE/baseline.json")
     world_index=$(jq -r '.world // 1' "$BASE/baseline-data/ServerConfig.json")
-    docker run -d --name "$TEST" --restart no --stop-timeout 120 \
+    docker run -d "${runtime_env[@]}" --name "$TEST" --restart no --stop-timeout 120 \
         --cpus 1 --cpu-shares 256 --memory 10g --memory-swap 10g \
         --log-opt max-size=10m --log-opt max-file=3 \
         -e PUID=1001 -e PGID=1001 -e COREKEEPER_RUNTIME="$runtime" \

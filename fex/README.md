@@ -1,5 +1,9 @@
 # Experimental FEX ARM64 variant
 
+**Not a production fallback yet.** On the managed Oracle A1 VPS, Core Keeper
+1.3.0.4 failed during initialization in both tested SMC modes. Image/guest smoke
+tests pass, but they do not prove game compatibility. See [measured results](RESULTS.md).
+
 This variant does not replace `latest` (Box64). Build/publish uses only `fex-test`
 and commit-labelled `fex-<commit>` tags. After pulling, use its `@sha256:...`
 digest for an exact A/B build: rebuilding the same commit can refresh dependencies.
@@ -55,6 +59,13 @@ The test has a 1-core/10-GiB limit and lower CPU scheduling priority to protect 
 active production server. This is a compatibility test, **not an equal-resource
 performance benchmark**. No ports are published; join through the test Game ID.
 Only one previous-container log/inspection is retained when switching.
+
+An optional diagnostic mode uses upstream's slower full self-modifying-code
+validation rather than its default page tracking. It never disables SMC or TSO:
+
+```sh
+sudo env FEX_TEST_SMC_MODE=full bash runtime-test.sh start fex <image-digest>
+```
 
 Production remains on Box64 and its scheduled updater still targets
 Box64. Promoting FEX to production requires an explicit maintenance action and
