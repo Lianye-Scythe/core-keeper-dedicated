@@ -9,6 +9,7 @@ FEX official PPA package: `fex-emu-armv8.2` version `2609.1-1~n`.
 Official Ubuntu 24.04 RootFS: 2026-08-11, manifest XXH3-64 `3517e0e5ea25a473`.
 Game: 1.3.0.4-511d, Unity 6000.0.59f2; copied files from the running Box64 server.
 The guest software renderer reported llvmpipe LLVM 20.1.8 / Mesa 26.1.6.
+Host kernel: `7.0.0-1013-oracle`; native container Mesa package: `25.2.8-0ubuntu0.24.04.4`.
 
 Both attempts used independent world-1 backup copies, a test-only Game ID, native
 ARM64 Ubuntu 24.04 container, 1 CPU / 10 GiB limit, default TSO, and no privileged
@@ -18,7 +19,7 @@ protect production and are not suitable for an equal-resource speed comparison.
 | SMC mode | Observed result |
 | --- | --- |
 | Default page tracking (`FEX_SMCCHECKS=1`) | Engine and Steam initialized; data blocks loaded; then Unity reported SIGSEGV (`code:2`). Container exited 139, `OOMKilled=false`, before world readiness. |
-| Full validation (`FEX_SMCCHECKS=2`) | Unity reported fatal SIGSEGVs (`code:1` and `code:2`) during early initialization; no world readiness. Test was stopped. |
+| Full validation (`FEX_SMCCHECKS=2`) | Unity reported fatal SIGSEGVs (`code:1` and `code:2`) during early initialization; no world readiness. Graceful stop did not complete within 120 seconds, so Docker killed the test (exit 137; this was a requested stop, not evidence of OOM). |
 
 This is an image/guest/runtime compatibility failure, **not proof that the FEX
 translator alone is responsible**, nor an explanation for earlier Box64 failures.
