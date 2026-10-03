@@ -6,6 +6,11 @@ updates:
     schedule:
       interval: "daily"
   # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "docker"
+    directory: "/fex"
+    schedule:
+      interval: "daily"
+  # Maintain dependencies for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

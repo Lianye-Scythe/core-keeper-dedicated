@@ -52,7 +52,7 @@ if [ "$architecture" == "arm64" ]; then
     case "${runtime}" in
         box64) emulator=/usr/local/bin/box64 ;;
         fex)
-            emulator=/usr/bin/FEXInterpreter
+            emulator=/usr/bin/FEX
             if [[ "${USE_DEPOT_DOWNLOADER}" != true || ! -d "${FEX_ROOTFS:-}" ]]; then
                 LogError "FEX requires DepotDownloader and an extracted FEX_ROOTFS."
                 exit 1

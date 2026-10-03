@@ -1,10 +1,12 @@
 # FEX is deliberately a separate ARM64-only experimental image. Never latest.
 FROM ubuntu:24.04 AS rootfs
+ARG APT_REFRESH_NONCE=manual
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl jq squashfs-tools xxhash \
     && rm -rf /var/lib/apt/lists/*
 COPY fex/install-rootfs.sh /usr/local/bin/install-fex-rootfs
-RUN bash /usr/local/bin/install-fex-rootfs /opt/fex-rootfs
+RUN echo "Refreshing official RootFS manifest: ${APT_REFRESH_NONCE}" \
+    && bash /usr/local/bin/install-fex-rootfs /opt/fex-rootfs
 
 FROM ubuntu:24.04
 ARG TARGETARCH
