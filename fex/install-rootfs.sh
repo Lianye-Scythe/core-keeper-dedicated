@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+# Use the official fetcher's manifest and xxHash64 integrity check, not an old
+# third-party RootFS URL. Record SHA-256 as additional build provenance.
+destination="${1:?Usage: install-rootfs.sh DESTINATION}"
+curl --fail --location --retry 3 --connect-timeout 15 --max-time 60 \
+    https://rootfs.fex-emu.gg/RootFS_links.json -o /tmp/fex-rootfs-manifest.json
+selection="$(jq -cer '.v1 | to_entries | map(select(.value.DistroMatch == "ubuntu"
+    and .value.DistroVersion == "24.04" and .value.Type == "squashfs"))
+    | if length == 1 then .[0].value else error("Ambiguous Ubuntu 24.04 RootFS") end' \
+    /tmp/fex-rootfs-manifest.json)"
+url="$(jq -r '.URL' <<<"${selection}")"
+hash="$(jq -r '.Hash' <<<"${selection}")"
+[[ "${url}" =~ ^https://rootfs\.fex-emu\.gg/Ubuntu_24_04/[0-9-]+/Ubuntu_24_04\.sqsh$ ]]
+[[ "${hash}" =~ ^[0-9a-fA-F]{1,16}$ ]]
+curl --fail --location --retry 3 --connect-timeout 15 --max-time 1200 \
+    "${url}" -o /tmp/fex-rootfs.sqsh
+printf '%016x  %s\n' "0x${hash}" /tmp/fex-rootfs.sqsh | xxhsum -c -
+sha="$(sha256sum /tmp/fex-rootfs.sqsh | cut -d ' ' -f 1)"
+jq -n --argjson source "${selection}" --arg sha256 "${sha}" \
+    '{source:$source,sha256:$sha256}' > /opt/fex-rootfs-source.json
+unsquashfs -no-progress -d "${destination}" /tmp/fex-rootfs.sqsh
+rm -f /tmp/fex-rootfs.sqsh /tmp/fex-rootfs-manifest.json
