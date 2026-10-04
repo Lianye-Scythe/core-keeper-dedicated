@@ -7,6 +7,7 @@ FEX/Mesa caches and the image's guest RootFS are not archived. No live apt upgra
 import argparse
 import datetime as dt
 import fcntl
+import gzip
 import hashlib
 import json
 import os
@@ -190,6 +191,11 @@ def replacement_args(info, image, base):
 
 
 def validate_archive(path):
+    # Consume the complete gzip stream, including its CRC/trailer, before using
+    # tar headers. A readable table of contents alone is not sufficient.
+    with gzip.open(path, 'rb') as compressed:
+        while compressed.read(1024 * 1024):
+            pass
     with tarfile.open(path, 'r:gz') as archive:
         members = archive.getmembers()
         if not members:
@@ -204,11 +210,6 @@ def validate_archive(path):
             roots.add(parts[0])
         if roots != {'server-data', 'server-files'}:
             raise ValueError('Incomplete rollback archive')
-        for member in members:
-            if member.isfile():
-                with archive.extractfile(member) as stream:
-                    while stream.read(1024 * 1024):
-                        pass
 
 
 def prune_backups(directory, keep):

@@ -203,6 +203,17 @@ class UpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unsafe rollback'):
             update.validate_archive(path)
 
+    def test_corrupt_gzip_trailer_is_rejected(self):
+        path = self.base / 'corrupt.tar.gz'
+        with tarfile.open(path, 'w:gz') as archive:
+            archive.add(self.base / 'server-data', arcname='server-data')
+            archive.add(self.base / 'server-files', arcname='server-files')
+        payload = bytearray(path.read_bytes())
+        payload[-8] ^= 0xff
+        path.write_bytes(payload)
+        with self.assertRaises(OSError):
+            update.validate_archive(path)
+
 
 class ReadinessTests(unittest.TestCase):
     def test_new_world_ready(self):
