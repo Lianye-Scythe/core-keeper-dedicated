@@ -1,8 +1,8 @@
 """Offline transaction tests: never contact Docker, Steam or production saves."""
-import copy
 import datetime as dt
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tarfile
@@ -216,6 +216,69 @@ class ReadinessTests(unittest.TestCase):
 
     def test_timescale_before_world_is_not_ready(self):
         self.assertFalse(readiness.logs_ready('Started session with info:\ntimescale = 0\nstarting a new world :\n'))
+
+
+class SetupGateTests(unittest.TestCase):
+    """Execute the real setup script with offline downloader/metadata stubs."""
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.base = Path(self.temporary.name)
+        self.scripts = self.base / 'scripts'
+        self.files = self.base / 'game'
+        self.bin = self.base / 'bin'
+        for path in (self.scripts, self.files, self.bin):
+            path.mkdir()
+        (self.scripts / 'mod-manager.sh').write_text('manage_mods() { :; }\nLogError() { echo "$*"; }\n')
+        (self.scripts / 'launch.sh').write_text('exit 0\n')
+        (self.files / 'CoreKeeperServer').write_text('old')
+        (self.files / 'CoreKeeperServer').chmod(0o755)
+        (self.bin / 'DepotDownloader').write_text(
+            '#!/bin/sh\nprintf "download\\n" >> "$TEST_DOWNLOADS"\nexit "${TEST_DOWNLOAD_EXIT:-0}"\n')
+        (self.bin / 'curl').write_text(
+            '#!/bin/sh\nif [ "${TEST_METADATA_FAIL:-0}" = 1 ]; then exit 1; fi\n'
+            'printf \'{"data":{"1963720":{"depots":{"branches":{"public":{"buildid":"101"}}}}}}\\n\'\n')
+        for path in self.bin.iterdir():
+            path.chmod(0o755)
+        self.permit = self.base / 'permit'
+        self.downloads = self.base / 'downloads'
+        self.env = dict(os.environ, SCRIPTSDIR=str(self.scripts), STEAMAPPDIR=str(self.files),
+                        USE_DEPOT_DOWNLOADER='true', STEAMAPPID='1007', STEAMAPPID_TOOL='1963720',
+                        UPDATE_GATE_ENABLED='true', UPDATE_PERMIT_FILE=str(self.permit),
+                        PATH=str(self.bin) + ':' + os.environ['PATH'], TEST_DOWNLOADS=str(self.downloads))
+
+    def setup(self):
+        return subprocess.run(['bash', str(Path(__file__).resolve().parents[1] / 'scripts/setup.sh')],
+                              env=self.env, capture_output=True, text=True)
+
+    def test_restart_without_permit_does_not_download(self):
+        self.assertEqual(self.setup().returncode, 0)
+        self.assertFalse(self.downloads.exists())
+
+    def test_valid_permit_downloads_and_certifies_build(self):
+        self.permit.write_text(str(int(dt.datetime.now().timestamp())) + '\n')
+        self.assertEqual(self.setup().returncode, 0)
+        self.assertEqual(self.downloads.read_text().splitlines(), ['download', 'download'])
+        self.assertEqual((self.files / '.corekeeper-buildid').read_text().strip(), '101')
+        self.assertFalse(self.permit.exists())
+
+    def test_stale_permit_is_removed_without_download(self):
+        self.permit.write_text('1\n')
+        self.assertEqual(self.setup().returncode, 0)
+        self.assertFalse(self.downloads.exists())
+        self.assertFalse(self.permit.exists())
+
+    def test_download_failure_does_not_certify(self):
+        self.permit.write_text(str(int(dt.datetime.now().timestamp())) + '\n')
+        self.env['TEST_DOWNLOAD_EXIT'] = '1'
+        self.assertEqual(self.setup().returncode, 1)
+        self.assertFalse((self.files / '.corekeeper-buildid').exists())
+
+    def test_metadata_failure_does_not_certify(self):
+        self.permit.write_text(str(int(dt.datetime.now().timestamp())) + '\n')
+        self.env['TEST_METADATA_FAIL'] = '1'
+        self.assertEqual(self.setup().returncode, 0)
+        self.assertFalse((self.files / '.corekeeper-buildid').exists())
 
 
 if __name__ == '__main__':

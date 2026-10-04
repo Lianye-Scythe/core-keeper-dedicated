@@ -23,8 +23,12 @@ from zoneinfo import ZoneInfo
 
 
 def run(args, timeout=120, check=True):
-    return subprocess.run(args, capture_output=True, text=True,
-                          timeout=timeout, check=check)
+    try:
+        return subprocess.run(args, capture_output=True, text=True,
+                              timeout=timeout, check=check)
+    except subprocess.CalledProcessError as error:
+        # Do not log full docker-create arguments, which can contain credentials.
+        raise RuntimeError(f'{args[0]} failed: {error.stderr[:1200]}') from None
 
 
 def log(message):
@@ -113,8 +117,8 @@ def environment(info):
 def replacement_args(info, image, base):
     """Preserve the supported bind-mounted deployment; reject unknown features."""
     host, config = info['HostConfig'], info['Config']
-    if host.get('Privileged') or host.get('CapAdd') or host.get('Devices') or host.get('Binds'):
-        raise ValueError('Privileged/device/legacy-bind configuration is unsupported')
+    if host.get('Privileged') or host.get('CapAdd') or host.get('Devices'):
+        raise ValueError('Privileged/device configuration is unsupported')
     if host.get('NetworkMode') not in ('default', 'bridge'):
         raise ValueError('Only the default Docker bridge is supported')
     if host.get('AutoRemove') or host.get('ReadonlyRootfs') or config.get('User'):
@@ -136,7 +140,8 @@ def replacement_args(info, image, base):
     for mount in info['Mounts']:
         target = mount['Destination']
         if (target not in expected or mount['Type'] != 'bind' or not mount['RW']
-                or mount['Source'] != str(base / expected[target])):
+                or mount['Source'] != str(base / expected[target])
+                or mount.get('Propagation', 'rprivate') not in ('private', 'rprivate')):
             raise ValueError(f'Unexpected mount: {target}')
         mounted.add(target)
     if not set(expected).difference({'/run/corekeeper-update'}) <= mounted:
@@ -176,6 +181,9 @@ def replacement_args(info, image, base):
             args += ['--publish', f"{ip + ':' if ip else ''}{binding['HostPort']}:{port}"]
     for key, value in sorted(env.items()):
         args += ['--env', f'{key}={value}']
+    for key, value in (config.get('Labels') or {}).items():
+        if not key.startswith('org.opencontainers.image.'):
+            args += ['--label', f'{key}={value}']
     for target, source in expected.items():
         args += ['--mount', f'type=bind,src={base / source},dst={target}']
     return args + [image]
