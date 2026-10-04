@@ -4,7 +4,9 @@ FEX is now the default and only supported ARM64 runtime. Build from the root
 [Dockerfile](../Dockerfile); deployment, settings and automatic maintenance are
 documented in the [main README](../README.md).
 
-Ubuntu 24.04 LTS is used on both sides of the emulator. The official stable PPA
+The ARM64 container uses Ubuntu 26.04 LTS, while the x86-64 guest RootFS remains
+on Ubuntu 24.04 LTS. These userspace environments need not match each other or
+the Docker host's distribution; they share the host kernel. The official stable PPA
 provides `fex-emu-armv8.2`; the official RootFS manifest supplies a validated,
 extracted x86-64 guest filesystem. No privileged mount or host registration is
 required. Native ARM64 DepotDownloader handles Steam downloads.

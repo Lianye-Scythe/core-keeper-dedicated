@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Ubuntu 24.04 is the deliberately selected, tested LTS guest/host baseline.
+  # ARM64 container: Ubuntu 26.04 LTS; RootFS extraction stage: Ubuntu 24.04 LTS.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
