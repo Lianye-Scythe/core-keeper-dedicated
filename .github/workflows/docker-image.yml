@@ -78,7 +78,9 @@ jobs:
       - name: Publish tested FEX image (main only)
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
-          IMAGE: ghcr.io/${{ github.repository }}
+          # Existing public GHCR package remains linked after repository rename.
+          # Other forks default to their own repository; this project sets the var.
+          IMAGE: ghcr.io/${{ vars.IMAGE_REPOSITORY || github.repository }}
           COMMIT: ${{ github.sha }}
         run: |
           image="${IMAGE,,}"

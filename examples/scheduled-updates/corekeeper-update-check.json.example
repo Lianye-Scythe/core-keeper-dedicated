@@ -1,7 +1,7 @@
 {
   "base": "/srv/corekeeper",
   "container": "core-keeper-dedicated",
-  "image": "ghcr.io/lianye-scythe/core-keeper-dedicated-fex:fex",
+  "image": "ghcr.io/lianye-scythe/core-keeper-dedicated:fex",
   "timezone": "Asia/Taipei",
   "maintenance_hour": 17,
   "backup_keep": 2,

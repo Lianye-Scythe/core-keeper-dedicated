@@ -1,6 +1,6 @@
 services:
   core-keeper:
-    image: ghcr.io/lianye-scythe/core-keeper-dedicated-fex:fex
+    image: ghcr.io/lianye-scythe/core-keeper-dedicated:fex
     container_name: core-keeper-dedicated
     restart: unless-stopped
     network_mode: bridge

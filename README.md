@@ -11,15 +11,17 @@ It is not affiliated with the game developer or FEX maintainers.
 ## Migration notice
 
 This repository now supports **FEX/ARM64 only**. Box64 build variants and AMD64
-images are no longer built. The new package
-`ghcr.io/lianye-scythe/core-keeper-dedicated-fex` uses `fex` and `latest` for the
-same tested ARM64 image. The old package name is not a redirected image endpoint;
-update your deployment explicitly. Never share writable saves between servers.
+images are no longer built. For deployment continuity, the existing public package
+`ghcr.io/lianye-scythe/core-keeper-dedicated` uses `fex` and `latest` for the
+same tested ARM64 image. Its name intentionally remains unchanged when the GitHub
+repository is renamed; **its `latest` tag changes from Box64 to FEX/ARM64**.
+Existing users must review this architecture/runtime change before pulling.
+Never share writable saves between servers.
 Changing the image does not delete worlds or change a configured Game ID.
 
 ## Images and compatibility
 
-- `ghcr.io/lianye-scythe/core-keeper-dedicated-fex:fex`: recommended update channel.
+- `ghcr.io/lianye-scythe/core-keeper-dedicated:fex`: recommended update channel.
 - `:latest`: identical FEX/ARM64 channel, not the previous Box64 image.
 - `:fex-<commit>`: source revision label, **not immutable** across daily rebuilds.
 - `@sha256:<digest>`: immutable image reference for reproducibility/rollback.
@@ -56,7 +58,7 @@ docker run -d --name core-keeper-dedicated --restart unless-stopped \
   --mount type=bind,src=/srv/corekeeper/server-files,dst=/home/steam/core-keeper-dedicated \
   --mount type=bind,src=/srv/corekeeper/fex-cache,dst=/home/steam/.cache/fex \
   --mount type=bind,src=/srv/corekeeper/mesa-cache,dst=/home/steam/.cache/mesa_shader_cache \
-  ghcr.io/lianye-scythe/core-keeper-dedicated-fex:fex
+  ghcr.io/lianye-scythe/core-keeper-dedicated:fex
 ```
 
 This quick start checks/downloads game updates **on startup**. To update only in
