@@ -8,7 +8,7 @@ COPY fex/install-rootfs.sh /usr/local/bin/install-fex-rootfs
 RUN echo "Refreshing official RootFS manifest: ${APT_REFRESH_NONCE}" \
     && bash /usr/local/bin/install-fex-rootfs /opt/fex-rootfs
 
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 ARG TARGETARCH
 ARG APT_REFRESH_NONCE=manual
 ARG DEPOT_DOWNLOADER_VERSION=3.4.0

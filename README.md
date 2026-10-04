@@ -26,7 +26,10 @@ Changing the image does not delete worlds or change a configured Game ID.
 - `:fex-<commit>`: source revision label, **not immutable** across daily rebuilds.
 - `@sha256:<digest>`: immutable image reference for reproducibility/rollback.
 
-The host image and extracted guest RootFS use **Ubuntu 24.04 LTS**. FEX comes from
+The native ARM64 container uses **Ubuntu 26.04 LTS**; its extracted x86-64 guest
+RootFS remains on **Ubuntu 24.04 LTS** from FEX's official manifest. The Docker
+host may use a different distribution/version; the container shares its kernel.
+FEX comes from
 its official stable PPA; DepotDownloader uses its latest stable, non-prerelease
 release during CI. Daily builds refresh APT/FEX and the official RootFS manifest.
 RootFS XXH3-64 is verified; URL/hash/SHA-256 are recorded in
