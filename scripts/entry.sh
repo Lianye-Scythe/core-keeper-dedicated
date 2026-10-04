@@ -17,7 +17,7 @@ prepare_owner() {
     # Exclude separately managed data and read-only script mounts from HOME.
     if [[ "${directory}" == "${HOMEDIR}" ]]; then
         find "${directory}" \( -path "${STEAMAPPDIR}" -o -path "${STEAMAPPDATADIR}" \
-            -o -path "${SCRIPTSDIR}" -o -path "${FEX_APP_CACHE_LOCATION}" \) -prune \
+            -o -path "${SCRIPTSDIR}" -o -path "${FEX_APP_CACHE_LOCATION%/}" \) -prune \
             -o \( ! -uid "${PUID}" -o ! -gid "${PGID}" \) \
             -exec chown -h "${PUID}:${PGID}" {} +
     else

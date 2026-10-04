@@ -4,5 +4,5 @@ test "$(id -u)" = "$PUID"
 test "$(id -g)" = "$PGID"
 test -w "$STEAMAPPDIR"
 test -w "$STEAMAPPDATADIR"
-test -w "$BOX64_DYNACACHE_FOLDER"
+test -w "$FEX_APP_CACHE_LOCATION"
 echo ENTRY_SMOKE_SETUP_OK
