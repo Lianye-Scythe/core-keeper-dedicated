@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly Core Keeper diagnostic retention
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=120
+Persistent=true
+Unit=corekeeper-diagnostics-retention.service
+
+[Install]
+WantedBy=timers.target

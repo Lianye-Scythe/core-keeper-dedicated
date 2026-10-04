@@ -6,3 +6,10 @@ __pycache__/
 /docker-compose-example/mesa-cache
 /docker-compose-example/update-control
 /docker-compose-example/core.env
+core.env
+*.env
+!*.env.example
+*.core
+*.core.gz
+/diagnostics/
+/runtime-test/

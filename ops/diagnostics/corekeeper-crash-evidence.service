@@ -1,0 +1,15 @@
+[Unit]
+Description=Bounded private Core Keeper crash evidence collector
+After=docker.service apport.service
+Requires=docker.service
+RequiresMountsFor=/data/corekeeper
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/corekeeper-crash-evidence monitor
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
