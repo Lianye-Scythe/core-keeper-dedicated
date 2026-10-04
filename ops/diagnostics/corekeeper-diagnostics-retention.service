@@ -1,0 +1,16 @@
+[Unit]
+Description=Bound Core Keeper historical logs and manual diagnostic evidence
+After=docker.service
+RequiresMountsFor=/data/corekeeper
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/corekeeper-diagnostics-retention
+UMask=0077
+Nice=15
+IOSchedulingClass=idle
+MemoryMax=128M
+TimeoutStartSec=180
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/data/corekeeper/server-files/logs /data/corekeeper/diagnostics /data/corekeeper/runtime-test /run/lock

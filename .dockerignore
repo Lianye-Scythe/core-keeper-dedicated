@@ -1,0 +1,15 @@
+.git
+**/__pycache__
+**/*.pyc
+**/core.env
+**/*.env
+!**/*.env.example
+docker-compose-example/server-data
+docker-compose-example/server-files
+docker-compose-example/fex-cache
+docker-compose-example/mesa-cache
+docker-compose-example/update-control
+diagnostics
+runtime-test
+**/*.core
+**/*.core.gz

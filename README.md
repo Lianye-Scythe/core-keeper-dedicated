@@ -52,9 +52,25 @@ Use an ARM64 host with rootful Docker. Create separate writable directories for
 `server-data`, `server-files`, `fex-cache` and `mesa-cache`, then adapt the paths in
 [the Compose example](docker-compose-example/docker-compose.yml).
 
+For a **new installation**, create the directories before using `--mount` (Docker
+will not create missing bind sources):
+
+```sh
+sudo mkdir -p /srv/corekeeper/{server-data,server-files,fex-cache,mesa-cache,update-control}
+id -u
+id -g
+```
+
+Use those positive numeric IDs as `PUID`/`PGID`; `1000` below is only an example.
+The rootful image entrypoint initializes ownership, then runs the game as the
+unprivileged Steam user. Do not recursively change ownership of a whole disk or
+reuse another service's directory. Existing saves should stay in their original
+data directory; these commands are not a migration/reset procedure.
+
 ```sh
 docker run -d --name core-keeper-dedicated --restart unless-stopped \
   --stop-timeout 120 \
+  --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
   -e PUID=1000 -e PGID=1000 -e WORLD_NAME='Core Keeper Server' \
   -e GAME_ID='YourOwnGameId123' -e ACTIVATE_ALL_CONTENT=true \
   --mount type=bind,src=/srv/corekeeper/server-data,dst=/home/steam/core-keeper-data \
@@ -68,6 +84,28 @@ This quick start checks/downloads game updates **on startup**. To update only in
 a maintenance window, use the scheduled updater below instead. The first install
 downloads the server anonymously; players still need a legitimate compatible
 game client. Generation on A1 can take several minutes before clients can join.
+
+### Compose alternative
+
+Copy [core.env.example](docker-compose-example/core.env.example) to `core.env`
+beside the Compose file, restrict it to your account, and edit its owner IDs and
+world settings. Replace **all five** `/host/path/to/...` bind sources in the
+Compose file with the corresponding directories above:
+
+```sh
+cd docker-compose-example
+cp core.env.example core.env
+chmod 600 core.env
+docker compose config --quiet
+docker compose up -d
+```
+
+The example defaults to startup updates. **Compose alone does not install an
+hourly update schedule.** Keep `UPDATE_GATE_ENABLED=false` until you follow the
+host-updater instructions below; with the gate enabled but no host timer, an
+existing installation will not automatically download new game builds.
+Compose intentionally enables all available world content; review that setting
+before attaching an existing world. Private `core.env` files are git-ignored.
 
 ```sh
 docker logs --tail 100 core-keeper-dedicated
@@ -142,6 +180,10 @@ rejected before stopping the server rather than silently discarded.
 1. Set `UPDATE_GATE_ENABLED=true`, `ACTIVATE_ALL_CONTENT=true`, and bind a writable
    `update-control` directory to `/run/corekeeper-update`. Ensure its ownership
    matches `PUID`/`PGID`.
+   For Compose, edit `core.env` and use `docker compose up -d` to apply changed
+   environment variables; `docker restart` alone does not change them. This may
+   recreate the container and cause downtime, but does not reset its bind-mounted
+   saves. Set up the remaining host steps in the same installation session.
 2. Install the helpers and root-owned JSON configuration:
 
 ```sh
@@ -157,6 +199,11 @@ sudo install -m 0600 examples/scheduled-updates/corekeeper-update-check.json.exa
    mounted filesystem it lives on (`required_mountpoint`, e.g. `/data`). It must
    already contain all four data/cache directories. Host dependencies are Python
    3.10+, Docker, GNU tar and systemd; the image has the download dependencies.
+   `required_mountpoint` must be an actual mounted filesystem, **not merely a
+   directory**. On the managed separate data disk, use `base=/data/corekeeper`
+   and `required_mountpoint=/data`; change every Compose bind source accordingly.
+   A normal `/srv/corekeeper` directory is not itself a mountpoint. This safeguard
+   prevents starting maintenance on the system disk when the data disk is absent.
 4. Enable the timer:
 
 ```sh
@@ -172,6 +219,11 @@ updates the game when permitted. The binaries are included so a failed game
 upgrade can really be rolled back. Caches/RootFS are excluded. Retention is one
 or two archives (`backup_keep`); the managed host uses two. During an update a
 temporary third archive can exist until the transaction finishes.
+
+These are **update-triggered backups**, not daily save backups. If nothing
+changes, no new archive is created. Copies on the same disk/VPS do not protect
+against losing that disk or instance. Do not archive live saves and assume they
+are consistent; this updater stops the game before backing up.
 
 Failed startup/build certification restores the previous FEX container and the
 pre-update game/save files. A host reboot/interruption leaves a transaction
@@ -193,6 +245,24 @@ publishes **only from `main`**. PRs test without publishing. Dependabot checks
 Docker/Actions daily; patch/minor updates use auto-merge after required checks.
 Major/LTS changes stay under review. The GHCR package must be public for anonymous
 VPS pulls, or Docker needs registry credentials.
+
+Image publication does not automatically replace the separately installed host
+updater/readiness scripts. After reviewing changes, repeat the helper-install
+commands above on the host; do not replace them during an active transaction.
+
+## Diagnostics and troubleshooting
+
+[Troubleshooting](docs/troubleshooting.md) covers slow initialization, connection
+failures, update errors and safe rollback review. Optional
+[managed-host diagnostics](ops/diagnostics/README.md) provides bounded crash/exit
+evidence, network/CPU sampling and historical-log retention. These tools are
+**not installed by Docker or Compose**, do not send notifications, and do not
+automatically restart a server that appears hung.
+
+The diagnostic examples specifically target the existing `/data/corekeeper`
+layout with one `core-keeper-dedicated` container. They are not a generic installer
+for arbitrary host paths. Raw evidence, saves, backups and host credentials must
+remain private; the repository contains only source, templates and synthetic tests.
 
 ## Attribution and license
 

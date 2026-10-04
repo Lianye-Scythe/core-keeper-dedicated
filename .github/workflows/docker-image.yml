@@ -24,8 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - run: |
-          for file in scripts/*.sh fex/*.sh tests/*.sh; do bash -n "$file"; done
-          shellcheck -S warning scripts/*.sh fex/*.sh tests/*.sh
+          for file in scripts/*.sh fex/*.sh tests/*.sh ops/diagnostics/*.sh; do bash -n "$file"; done
+          shellcheck -S warning scripts/*.sh fex/*.sh tests/*.sh ops/diagnostics/*.sh
           python3 -B -m unittest discover -s tests -p 'test_*.py' -v
   releases:
     name: Resolve stable dependencies

@@ -35,6 +35,10 @@ root-owned `/etc/corekeeper-fex.env` and an immutable image reference in
 and never resets saves. The scheduled updater preserves settings from the current
 container rather than hardcoding this host's private join ID into the repository.
 
+Optional host collectors and retention templates are documented under
+[ops/diagnostics](../ops/diagnostics/README.md). They observe production separately
+from the image and are not enabled simply by pulling a new image.
+
 Sources: [FEX prerequisites](https://github.com/FEX-Emu/FEX#prerequisites),
 [official RootFS manifest](https://rootfs.fex-emu.gg/RootFS_links.json),
 [configuration defaults](https://github.com/FEX-Emu/FEX/blob/FEX-2609.1/FEXCore/Source/Interface/Config/Config.json.in).

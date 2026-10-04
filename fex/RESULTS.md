@@ -32,8 +32,11 @@ bug. The production
 crash collector deliberately scopes itself to production save files; it does not
 currently provide a full FEX-test core/backtrace.
 
-Raw logs and inspections remain private on the VPS under
+Raw logs and inspections were stored privately on the VPS under
 `/data/corekeeper/runtime-test`, including bounded previous-container evidence.
+They are subject to the host's retention policy and may have been pruned; the
+paths and image versions here describe historical trials, not current deployment
+requirements or a promise that every raw artifact remains available.
 A short client gameplay test subsequently succeeded. No controlled gameplay
 performance comparison or long-running stability test has been completed.
 
@@ -59,10 +62,11 @@ The historical test controller used a 1-CPU cap; these timings used 2.
 That A/B controller has since been removed. The production FEX image defaults to
 bounded-16 without weakening TSO/SMC and imposes no CPU quota itself.
 
-Private first-run evidence: `trial-bounded16.8GBqLi`; failed-64 evidence:
+Historical private first-run evidence: `trial-bounded16.8GBqLi`; failed-64 evidence:
 `trial-bounded64.GnZGhF`; repeat evidence: `trial-bounded16.2S4oqU`, under
-`/data/corekeeper/runtime-test`. Both successful trials were stopped by the
-controller after readiness (exit 143, not OOM); they are not unattended servers.
+`/data/corekeeper/runtime-test` (subject to retention). Both successful trials
+were stopped by the controller after readiness (exit 143, not OOM); they are not
+unattended servers.
 
 There is also an [upstream Valheim/Unity report on Oracle Ampere](https://github.com/FEX-Emu/FEX/issues/5985)
 with SIGSEGVs under FEX; its fault addresses and circumstances differ, so it does

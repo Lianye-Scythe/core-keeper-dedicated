@@ -5,6 +5,11 @@ services:
     restart: unless-stopped
     network_mode: bridge
     stop_grace_period: 2m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Port is only needed if using direct connection mode
     # ports:
     #   - "$SERVER_PORT:$SERVER_PORT/udp"
@@ -33,5 +38,6 @@ services:
       FEX_MULTIBLOCK: "1"
       FEX_MAXINST: "16"
       FEX_SMCCHECKS: "1"
-      UPDATE_GATE_ENABLED: "true"
+      # Startup updates are the default. Set UPDATE_GATE_ENABLED=true in core.env
+      # only after installing the host maintenance timer; see the README.
       ACTIVATE_ALL_CONTENT: "true"
