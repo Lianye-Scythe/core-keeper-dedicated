@@ -48,9 +48,8 @@ architecture=$(dpkg --print-architecture)
 
 # Start Core Keeper Server
 if [ "$architecture" == "arm64" ]; then
-    runtime="${COREKEEPER_RUNTIME:-box64}"
+    runtime="${COREKEEPER_RUNTIME:-fex}"
     case "${runtime}" in
-        box64) emulator=/usr/local/bin/box64 ;;
         fex)
             emulator=/usr/bin/FEX
             if [[ "${USE_DEPOT_DOWNLOADER}" != true || ! -d "${FEX_ROOTFS:-}" ]]; then
@@ -68,7 +67,8 @@ if [ "$architecture" == "arm64" ]; then
     # shellcheck disable=SC2154
     DISPLAY=:99 LD_LIBRARY_PATH="${STEAMCMDDIR}/linux64:/usr/lib:${LD_LIBRARY_PATH#:}" "${emulator}" ./CoreKeeperServer "${params[@]}" &
 else
-    DISPLAY=:99 LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${STEAMCMDDIR}/linux64/" ./CoreKeeperServer "${params[@]}" &
+    LogError "This image supports ARM64 with FEX only."
+    exit 1
 fi
 ckpid=$!
 

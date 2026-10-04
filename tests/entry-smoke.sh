@@ -4,7 +4,7 @@ set -Eeuo pipefail
 export PUID=1001 PGID=1001
 entry=/test-repo/scripts/entry.sh
 bash "$entry"
-for directory in "$HOMEDIR" "$STEAMAPPDIR" "$STEAMAPPDATADIR" "$BOX64_DYNACACHE_FOLDER"; do
+for directory in "$HOMEDIR" "$STEAMAPPDIR" "$STEAMAPPDATADIR" "$FEX_APP_CACHE_LOCATION"; do
     test "$(cat "$directory/.corekeeper-owner")" = 1001:1001
 done
 # Marker fast path must avoid scanning/chowning imported files.

@@ -1,152 +1,68 @@
-###########################################################
-# Dockerfile that builds a Core Keeper Gameserver
-###########################################################
-FROM cm2network/steamcmd:root-bookworm AS base-amd64
-FROM sonroyaalmerol/steamcmd-arm64:root-bookworm-2026-07-19 AS base-arm64
-
-ARG TARGETARCH
-FROM base-${TARGETARCH}
-ARG TARGETARCH
-
-LABEL maintainer="leandro.martin@protonmail.com"
-
-ENV STEAMAPPID=1007
-ENV STEAMAPPID_TOOL=1963720
-ENV STEAMAPP=core-keeper
-ENV STEAMAPPDIR="${HOMEDIR}/${STEAMAPP}-dedicated"
-ENV STEAMAPPDATADIR="${HOMEDIR}/${STEAMAPP}-data"
-ENV SCRIPTSDIR="${HOMEDIR}/scripts"
-ENV MODSDIR="${STEAMAPPDIR}/CoreKeeperServer_Data/StreamingAssets/Mods"
-
-RUN case "${TARGETARCH}" in \
-    "amd64") dpkg --add-architecture i386 ;; \
-    esac
-
-# Install Core Keeper server dependencies and clean up
+# Native ARM64 host with an extracted x86-64 guest RootFS; no privileged mounts.
+FROM ubuntu:24.04 AS rootfs
 ARG APT_REFRESH_NONCE=manual
-RUN set -x \
-    && echo "Refreshing Bookworm packages (cache nonce: ${APT_REFRESH_NONCE})" \
-    && apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-install-suggests \
-        xvfb \
-        libxi6 \
-        tini \
-        tzdata \
-        gosu \
-        jo \
-        jq \
-        gettext-base \
-        unzip \
-        wget \
-    && DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confold" upgrade -y --with-new-pkgs \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl jq squashfs-tools xxhash \
     && rm -rf /var/lib/apt/lists/*
+COPY fex/install-rootfs.sh /usr/local/bin/install-fex-rootfs
+RUN echo "Refreshing official RootFS manifest: ${APT_REFRESH_NONCE}" \
+    && bash /usr/local/bin/install-fex-rootfs /opt/fex-rootfs
 
-RUN case "${TARGETARCH}" in \
-    "arm64") dpkg --add-architecture amd64 \
-        && apt-get update \
-        && apt-get install -y --no-install-recommends --no-install-suggests \
-            libmonosgen-2.0-dev:amd64 \
-            libdbus-1-3 \
-            libxcursor1 \
-            libxinerama1 \
-            libxss1 \
-	&& rm -rf /var/lib/apt/lists/* ;; \
-    esac
-
-# Download Depot downloader
-ARG DEPOT_DOWNLOADER_VERSION="3.4.0"
-RUN case "${TARGETARCH}" in \
-        "amd64") DEPOT_DOWNLOADER_FILENAME=DepotDownloader-linux-x64.zip ;; \
-        "arm64") DEPOT_DOWNLOADER_FILENAME=DepotDownloader-linux-arm64.zip ;; \
-    esac \
-    && wget --progress=dot:giga "https://github.com/SteamRE/DepotDownloader/releases/download/DepotDownloader_${DEPOT_DOWNLOADER_VERSION}/${DEPOT_DOWNLOADER_FILENAME}" -O DepotDownloader.zip \
-    && unzip DepotDownloader.zip \
-    && rm -rf DepotDownloader.xml \
-    && chmod +x DepotDownloader \
-    && mv DepotDownloader /usr/local/bin/DepotDownloader
-
-# Setup X11 Sockets folder
-RUN mkdir /tmp/.X11-unix \
-    && chmod 1777 /tmp/.X11-unix \
-    && chown root /tmp/.X11-unix
-
-# Box64/86 configuration
-ENV BOX64_DYNACACHE=1 \
-    BOX64_DYNACACHE_FOLDER="${HOMEDIR}/.cache/box64" \
-    BOX64_DYNACACHE_LIMIT=2048 \
-    BOX64_DYNACACHE_COMPRESS=1 \
-    BOX64_DYNAREC_BIGBLOCK=0 \
-    BOX64_DYNAREC_SAFEFLAGS=2 \
-    BOX64_DYNAREC_STRONGMEM=3 \
-    BOX64_DYNAREC_FASTROUND=0 \
-    BOX64_DYNAREC_FASTNAN=0 \
-    BOX64_DYNAREC_X87DOUBLE=1 \
-    BOX64_DYNAREC_BLEEDING_EDGE=0 \
-    BOX86_DYNAREC_BIGBLOCK=0 \
-    BOX86_DYNAREC_SAFEFLAGS=2 \
-    BOX86_DYNAREC_STRONGMEM=3 \
-    BOX86_DYNAREC_FASTROUND=0 \
-    BOX86_DYNAREC_FASTNAN=0 \
-    BOX86_DYNAREC_X87DOUBLE=1 \
-    BOX86_DYNAREC_BLEEDING_EDGE=0
-
-# Setup folders
-COPY ./scripts ${SCRIPTSDIR}
-RUN set -x \
-    && chmod +x -R "${SCRIPTSDIR}" \
-    && mkdir -p "${STEAMAPPDIR}" \
-    && mkdir -p "${STEAMAPPDATADIR}" \
-    && chown -R "${USER}:${USER}" "${SCRIPTSDIR}" "${STEAMAPPDIR}" "${STEAMAPPDATADIR}"
-
-# Declare envs and their default values
-ENV PUID=1000 \
-    PGID=1000 \
-    USE_DEPOT_DOWNLOADER=true \
-    WORLD_INDEX=0 \
-    WORLD_NAME="Core Keeper Server" \
-    WORLD_SEED="" \
-    WORLD_MODE=0 \
-    GAME_ID="" \
-    DATA_PATH="${STEAMAPPDATADIR}" \
-    MAX_PLAYERS=8 \
-    SEASON="" \
-    SERVER_IP="" \
-    SERVER_PORT="" \
-    ACTIVATE_ALL_CONTENT=false \
-    UPDATE_GATE_ENABLED=false \
-    UPDATE_PERMIT_FILE="/run/corekeeper-update/apply-update" \
+FROM ubuntu:24.04
+ARG TARGETARCH
+ARG APT_REFRESH_NONCE=manual
+ARG DEPOT_DOWNLOADER_VERSION=3.4.0
+RUN test "${TARGETARCH}" = arm64
+ENV DEBIAN_FRONTEND=noninteractive
+RUN echo "Refreshing FEX packages: ${APT_REFRESH_NONCE}" \
+    && apt-get update && apt-get install -y --no-install-recommends \
+       ca-certificates software-properties-common curl python3 xvfb libxi6 tini \
+       tzdata gosu jo jq gettext-base unzip wget libdbus-1-3 libxcursor1 \
+       libxinerama1 libxss1 libgl1-mesa-dri libglx-mesa0 libegl1 libvulkan1 \
+    && add-apt-repository -y ppa:fex-emu/fex \
+    && apt-get update && apt-get install -y --no-install-recommends fex-emu-armv8.2 \
+    && apt-get -o Dpkg::Options::="--force-confold" upgrade -y --with-new-pkgs \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=rootfs /opt/fex-rootfs /opt/fex-rootfs
+COPY --from=rootfs /opt/fex-rootfs-source.json /opt/fex-rootfs-source.json
+RUN curl --fail --location --retry 3 \
+       "https://github.com/SteamRE/DepotDownloader/releases/download/DepotDownloader_${DEPOT_DOWNLOADER_VERSION}/DepotDownloader-linux-arm64.zip" \
+       -o /tmp/depot.zip \
+    && unzip /tmp/depot.zip -d /opt/depot-downloader \
+    && chmod +x /opt/depot-downloader/DepotDownloader \
+    && ln -s /opt/depot-downloader/DepotDownloader /usr/local/bin/DepotDownloader \
+    && printf '%s\n' "${DEPOT_DOWNLOADER_VERSION}" > /opt/depot-downloader-version \
+    && rm /tmp/depot.zip
+ENV USER=steam HOMEDIR=/home/steam HOME=/home/steam \
+    STEAMAPPID=1007 STEAMAPPID_TOOL=1963720 STEAMAPP=core-keeper \
+    STEAMAPPDIR=/home/steam/core-keeper-dedicated \
+    STEAMAPPDATADIR=/home/steam/core-keeper-data \
+    STEAMCMDDIR=/home/steam/steamcmd SCRIPTSDIR=/home/steam/scripts \
+    MODSDIR=/home/steam/core-keeper-dedicated/CoreKeeperServer_Data/StreamingAssets/Mods \
+    COREKEEPER_RUNTIME=fex FEX_ROOTFS=/opt/fex-rootfs \
+    FEX_MULTIBLOCK=1 FEX_MAXINST=16 \
+    FEX_APP_CACHE_LOCATION=/home/steam/.cache/fex/ \
+    PUID=1000 PGID=1000 USE_DEPOT_DOWNLOADER=true DEBUG=false \
+    WORLD_INDEX=0 WORLD_NAME="Core Keeper Server" WORLD_SEED="" WORLD_MODE=0 \
+    HASHED_WORLD_SEED="" GAME_ID="" MAX_PLAYERS=8 SEASON="" \
+    SERVER_IP="" SERVER_PORT="" PASSWORD="" ACTIVATE_CONTENT="" \
+    ACTIVATE_ALL_CONTENT=false ALLOW_ONLY_PLATFORM="" \
+    UPDATE_GATE_ENABLED=false UPDATE_PERMIT_FILE=/run/corekeeper-update/apply-update \
     UPDATE_PERMIT_MAX_AGE_SECONDS=3600 \
-    ALLOW_ONLY_PLATFORM="" \
-    DISCORD_WEBHOOK_URL="" \
-    # Player Join
-    DISCORD_PLAYER_JOIN_ENABLED=true \
-    DISCORD_PLAYER_JOIN_MESSAGE='${char_name} (${steamid}) has joined the server.' \
-    DISCORD_PLAYER_JOIN_TITLE="Player Joined" \
-    DISCORD_PLAYER_JOIN_COLOR="47456" \
-    # Player Leave
-    DISCORD_PLAYER_LEAVE_ENABLED=true \
-    DISCORD_PLAYER_LEAVE_MESSAGE='${char_name} (${steamid}) has disconnected. Reason: ${reason}.' \
-    DISCORD_PLAYER_LEAVE_TITLE="Player Left" \
-    DISCORD_PLAYER_LEAVE_COLOR="11477760" \
-    # Server Start
-    DISCORD_SERVER_START_ENABLED=true \
-    DISCORD_SERVER_START_MESSAGE="" \
-    DISCORD_SERVER_START_TITLE="Server Started" \
-    DISCORD_SERVER_START_COLOR="2013440" \
-    # Server Stop
-    DISCORD_SERVER_STOP_ENABLED=true \
-    DISCORD_SERVER_STOP_MESSAGE="" \
-    DISCORD_SERVER_STOP_TITLE="Server Stopped" \
-    DISCORD_SERVER_STOP_COLOR="12779520" \
-    # Mods
-    MODS_ENABLED=false \
-    MODIO_API_URL="" \
-    MODS=""
-
-# Switch to workdir
-WORKDIR ${HOMEDIR}
-
-# Use tini as the entrypoint for signal handling
+    DISCORD_WEBHOOK_URL="" DISCORD_PLAYER_JOIN_ENABLED=false \
+    DISCORD_PLAYER_LEAVE_ENABLED=false DISCORD_SERVER_START_ENABLED=false \
+    DISCORD_SERVER_STOP_ENABLED=false MODS_ENABLED=false MODIO_API_KEY="" MODIO_API_URL="" MODS="" \
+    MESA_SHADER_CACHE_MAX_SIZE=512M
+RUN userdel -r ubuntu \
+    && useradd -m -u 1000 steam \
+    && mkdir -p /tmp/.X11-unix "${STEAMAPPDIR}" "${STEAMAPPDATADIR}" \
+       "${STEAMCMDDIR}" /home/steam/.steam/sdk64 /home/steam/.cache/fex \
+    && chmod 1777 /tmp/.X11-unix \
+    && ln -s "${STEAMAPPDIR}/linux64" "${STEAMCMDDIR}/linux64" \
+    && ln -s "${STEAMAPPDIR}/linux64/steamclient.so" /home/steam/.steam/sdk64/steamclient.so
+COPY scripts /home/steam/scripts
+RUN chmod +x /home/steam/scripts/*.sh && chown -R steam:steam /home/steam
+LABEL org.opencontainers.image.title="Core Keeper dedicated server (FEX ARM64)"
+WORKDIR /home/steam
 ENTRYPOINT ["/usr/bin/tini", "--"]
-
 CMD ["bash", "scripts/entry.sh"]

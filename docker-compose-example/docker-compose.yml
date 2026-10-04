@@ -1,17 +1,37 @@
 services:
   core-keeper:
-    image: ghcr.io/lianye-scythe/core-keeper-dedicated:latest
+    image: ghcr.io/lianye-scythe/core-keeper-dedicated-fex:fex
     container_name: core-keeper-dedicated
     restart: unless-stopped
+    network_mode: bridge
     stop_grace_period: 2m
     # Port is only needed if using direct connection mode
     # ports:
     #   - "$SERVER_PORT:$SERVER_PORT/udp"
     volumes:
-      - /host/path/to/server-files:/home/steam/core-keeper-dedicated
-      - /host/path/to/server-data:/home/steam/core-keeper-data
-      - /host/path/to/box64-cache:/home/steam/.cache/box64
-      - /host/path/to/update-control:/run/corekeeper-update:rw
+      - type: bind
+        source: /host/path/to/server-files
+        target: /home/steam/core-keeper-dedicated
+      - type: bind
+        source: /host/path/to/server-data
+        target: /home/steam/core-keeper-data
+      - type: bind
+        source: /host/path/to/fex-cache
+        target: /home/steam/.cache/fex
+      - type: bind
+        source: /host/path/to/mesa-cache
+        target: /home/steam/.cache/mesa_shader_cache
+      - type: bind
+        source: /host/path/to/update-control
+        target: /run/corekeeper-update
     env_file:
       - path: core.env
         required: false
+    environment:
+      COREKEEPER_RUNTIME: fex
+      USE_DEPOT_DOWNLOADER: "true"
+      FEX_MULTIBLOCK: "1"
+      FEX_MAXINST: "16"
+      FEX_SMCCHECKS: "1"
+      UPDATE_GATE_ENABLED: "true"
+      ACTIVATE_ALL_CONTENT: "true"
