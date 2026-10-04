@@ -1,13 +1,8 @@
 version: 2
 updates:
-  # Keep the SteamCMD base image references current.
+  # Ubuntu 24.04 is the deliberately selected, tested LTS guest/host baseline.
   - package-ecosystem: "docker"
     directory: "/"
-    schedule:
-      interval: "daily"
-  # Track the separate LTS base image for experimental FEX builds.
-  - package-ecosystem: "docker"
-    directory: "/fex"
     schedule:
       interval: "daily"
   # Maintain dependencies for GitHub Actions

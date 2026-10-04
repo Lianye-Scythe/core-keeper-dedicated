@@ -1,0 +1,11 @@
+{
+  "base": "/srv/corekeeper",
+  "container": "core-keeper-dedicated",
+  "image": "ghcr.io/lianye-scythe/core-keeper-dedicated:fex",
+  "timezone": "Asia/Taipei",
+  "maintenance_hour": 17,
+  "backup_keep": 2,
+  "readiness_timeout": 1200,
+  "required_mountpoint": "/srv/corekeeper",
+  "readiness_helper": "/usr/local/libexec/corekeeper-ready"
+}

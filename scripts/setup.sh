@@ -33,24 +33,27 @@ else
 fi
 
 if [[ "${RUN_UPDATE}" == true ]]; then
+    # Certify the public build only when metadata stays stable during download.
+    build_before=$(curl --fail --silent --show-error --max-time 30 \
+        https://api.steamcmd.net/v1/info/1963720 \
+        | jq -er '.data["1963720"].depots.branches.public.buildid | tostring | select(test("^[0-9]+$"))') || build_before=""
+    rm -f "${STEAMAPPDIR}/.corekeeper-buildid"
     if [[ "${USE_DEPOT_DOWNLOADER}" == true ]]; then
         DepotDownloader -app "${STEAMAPPID}" -osarch 64 -dir "${STEAMAPPDIR}" -validate || exit $?
         DepotDownloader -app "${STEAMAPPID_TOOL}" -osarch 64 -dir "${STEAMAPPDIR}" -validate || exit $?
         chmod +x "${STEAMAPPDIR}/CoreKeeperServer"
     else
-        args=(
-            "+@sSteamCmdForcePlatformType" "linux"
-            "+@sSteamCmdForcePlatformBitness" "64"
-            "+force_install_dir" "${STEAMAPPDIR}"
-            "+login" "anonymous"
-            "+app_update" "${STEAMAPPID}" "validate"
-            "+app_update" "${STEAMAPPID_TOOL}" "validate"
-        )
-        if [[ -n "${STEAMCMD_UPDATE_ARGS:-}" ]]; then
-            args+=("${STEAMCMD_UPDATE_ARGS[@]}")
-        fi
-        args+=("+quit")
-        "${STEAMCMDDIR}/steamcmd.sh" "${args[@]}" || exit $?
+        LogError "FEX requires USE_DEPOT_DOWNLOADER=true; SteamCMD is not installed."
+        exit 1
+    fi
+
+    build_after=$(curl --fail --silent --show-error --max-time 30 \
+        https://api.steamcmd.net/v1/info/1963720 \
+        | jq -er '.data["1963720"].depots.branches.public.buildid | tostring | select(test("^[0-9]+$"))') || build_after=""
+    if [[ -n "${build_before}" && "${build_before}" == "${build_after}" ]]; then
+        printf '%s\n' "${build_after}" >"${STEAMAPPDIR}/.corekeeper-buildid"
+    else
+        echo "Public build metadata unavailable or changed; installed build remains uncertified."
     fi
 
     if [[ "${UPDATE_GATE_ENABLED,,}" == "true" ]]; then

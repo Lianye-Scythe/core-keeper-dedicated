@@ -1,2 +1,8 @@
 /docker-compose-example/server-files
 /docker-compose-example/server-data
+__pycache__/
+*.pyc
+/docker-compose-example/fex-cache
+/docker-compose-example/mesa-cache
+/docker-compose-example/update-control
+/docker-compose-example/core.env

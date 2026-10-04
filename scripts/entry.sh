@@ -17,7 +17,7 @@ prepare_owner() {
     # Exclude separately managed data and read-only script mounts from HOME.
     if [[ "${directory}" == "${HOMEDIR}" ]]; then
         find "${directory}" \( -path "${STEAMAPPDIR}" -o -path "${STEAMAPPDATADIR}" \
-            -o -path "${SCRIPTSDIR}" -o -path "${BOX64_DYNACACHE_FOLDER}" \) -prune \
+            -o -path "${SCRIPTSDIR}" -o -path "${FEX_APP_CACHE_LOCATION%/}" \) -prune \
             -o \( ! -uid "${PUID}" -o ! -gid "${PGID}" \) \
             -exec chown -h "${PUID}:${PGID}" {} +
     else
@@ -30,8 +30,8 @@ prepare_owner() {
     chown "${PUID}:${PGID}" "${marker}"
 }
 
-BOX64_DYNACACHE_FOLDER="${BOX64_DYNACACHE_FOLDER:-${HOMEDIR}/.cache/box64}"
-export BOX64_DYNACACHE_FOLDER
+FEX_APP_CACHE_LOCATION="${FEX_APP_CACHE_LOCATION:-${HOMEDIR}/.cache/fex}"
+export FEX_APP_CACHE_LOCATION
 
 # From: https://github.com/thijsvanloef/palworld-server-docker/blob/32ffe489daecbc332701592f2facf0fe3237c65f/scripts/init.sh#L15
 # Checks for root, updates UID and GID of user steam
@@ -52,10 +52,10 @@ if [[ "$(id -u)" -eq 0 ]] && [[ "$(id -g)" -eq 0 ]]; then
             usermod -d "${account_home}" "${USER}"
         fi
         [[ "$(id -g "${USER}")" == "${PGID}" ]] || groupmod -o -g "${PGID}" "${USER}"
-        for directory in "${HOMEDIR}" "${STEAMAPPDIR}" "${STEAMAPPDATADIR}" "${BOX64_DYNACACHE_FOLDER}"; do
+        for directory in "${HOMEDIR}" "${STEAMAPPDIR}" "${STEAMAPPDATADIR}" "${FEX_APP_CACHE_LOCATION}"; do
             prepare_owner "${directory}"
         done
-        for directory in "${STEAMAPPDIR}" "${STEAMAPPDATADIR}" "${BOX64_DYNACACHE_FOLDER}"; do
+        for directory in "${STEAMAPPDIR}" "${STEAMAPPDATADIR}" "${FEX_APP_CACHE_LOCATION}"; do
             if ! gosu "${USER}" test -w "${directory}"; then
                 LogError "${directory} is not writable by ${USER}. Check permissions or use REPAIR_PERMISSIONS=true."
                 exit 1
