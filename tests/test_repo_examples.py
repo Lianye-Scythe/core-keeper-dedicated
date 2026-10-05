@@ -11,6 +11,37 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_bilingual_readme_shell_commands_match(self):
+        snippets = []
+        for path in (ROOT / 'README.md', ROOT / 'docs/README.zh-TW.md'):
+            snippets.append(re.findall(r'```sh\n(.*?)\n```', path.read_text(), re.DOTALL))
+        self.assertTrue(snippets[0])
+        self.assertEqual(snippets[0], snippets[1])
+
+    def test_bilingual_readme_key_settings_and_guide_coverage(self):
+        keys = ('PUID', 'PGID', 'WORLD_NAME', 'WORLD_INDEX', 'GAME_ID',
+                'MAX_PLAYERS', 'ACTIVATE_ALL_CONTENT', 'UPDATE_GATE_ENABLED')
+        defaults = dict(line.split('=', 1) for line in
+                        (ROOT / 'docker-compose-example/core.env.example').read_text().splitlines()
+                        if line and not line.startswith('#') and '=' in line)
+        guides = [ROOT / 'docs' / f'{name}.md' for name in
+                  ('deployment', 'configuration', 'maintenance', 'troubleshooting', 'migration')]
+        guides += [ROOT / 'fex/README.md', ROOT / 'ops/diagnostics/README.md']
+        for path in (ROOT / 'README.md', ROOT / 'docs/README.zh-TW.md'):
+            text = path.read_text()
+            with self.subTest(document=path.name):
+                for key in keys:
+                    row = next(line for line in text.splitlines()
+                               if line.startswith('|') and f'`{key}`' in line)
+                    if defaults[key]:
+                        self.assertIn(f'`{defaults[key]}`', row)
+                self.assertIn('2.24.0', text)
+                self.assertIn('04:00 UTC', text)
+                targets = {((path.parent / target.split('#')[0]).resolve())
+                           for target in re.findall(r'\]\(([^\s)]+)\)', text)
+                           if '://' not in target}
+                self.assertTrue(set(guides).issubset(targets))
+
     def test_shell_examples_parse_without_executing(self):
         documents = [ROOT / 'README.md', *ROOT.glob('docs/*.md'),
                      *ROOT.glob('fex/*.md'), ROOT / 'ops/diagnostics/README.md']
