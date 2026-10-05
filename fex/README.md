@@ -1,15 +1,31 @@
 # FEX runtime notes
 
 FEX is now the default and only supported ARM64 runtime. Build from the root
-[Dockerfile](../Dockerfile); deployment, settings and automatic maintenance are
-documented in the [main README](../README.md).
+[Dockerfile](../Dockerfile). Start with the [main README](../README.md), then use
+the [deployment](../docs/deployment.md), [configuration](../docs/configuration.md)
+and [maintenance](../docs/maintenance.md) guides for operational details.
+
+## Images and tags
+
+- `ghcr.io/lianye-scythe/core-keeper-dedicated:fex`: recommended update channel.
+- `:latest`: identical FEX/ARM64 channel, not the previous Box64 image.
+- `:fex-<commit>`: source revision label, **not immutable** across daily rebuilds.
+- `@sha256:<digest>`: immutable image reference for reproducibility and rollback.
+
+For older deployments, review the [migration guide](../docs/migration.md).
+
+## Environments and provenance
 
 The ARM64 container uses Ubuntu 26.04 LTS, while the x86-64 guest RootFS remains
 on Ubuntu 24.04 LTS. These userspace environments need not match each other or
 the Docker host's distribution; they share the host kernel. The official stable PPA
 provides `fex-emu-armv8.2`; the official RootFS manifest supplies a validated,
 extracted x86-64 guest filesystem. No privileged mount or host registration is
-required. Native ARM64 DepotDownloader handles Steam downloads.
+required. Native ARM64 DepotDownloader handles Steam downloads. The RootFS
+XXH3-64 is verified; URL, hash and SHA-256 are recorded in
+`/opt/fex-rootfs-source.json`. `/opt/depot-downloader-version` records the downloader.
+
+## Translation and caches
 
 `FEX_MULTIBLOCK=1 FEX_MAXINST=16` passed repeated isolated Core Keeper 1.3.0.4
 boots and short multiplayer play on Oracle A1. Larger blocks failed during the
@@ -22,14 +38,19 @@ evidence; they are not instructions to keep or deploy the removed Box64 runtime.
 FEX cache directory: `/home/steam/.cache/fex` (`FEX_APP_CACHE_LOCATION`). This does
 not enable FEX disk caches that are disabled by upstream defaults. Mesa cache is
 separate at `/home/steam/.cache/mesa_shader_cache`, with a 512-MiB driver budget.
-Neither cache belongs in save backups. Do not use `-nographics` for this game.
+Neither cache belongs in save backups. Do not use `-nographics` for this game:
+world generation needs the shipped graphical path. CPU affinity is not required.
+
+## Validation and experiments
 
 For parallel compatibility experiments, use independent writable game/save/cache
 directories and a different Game ID. Never bind the production saves into two
 running containers. Keep game build, resource limits and world contents equal
 when making performance comparisons.
 
-`run-production.sh` is an optional managed `/data/corekeeper` bootstrap, using a
+## Managed deployment
+
+[`run-production.sh`](run-production.sh) is an optional managed `/data/corekeeper` bootstrap, using a
 root-owned `/etc/corekeeper-fex.env` and an immutable image reference in
 `/data/corekeeper/ops/fex-image-ref`. It refuses to replace an existing container
 and never resets saves. The scheduled updater preserves settings from the current
@@ -38,6 +59,22 @@ container rather than hardcoding this host's private join ID into the repository
 Optional host collectors and retention templates are documented under
 [ops/diagnostics](../ops/diagnostics/README.md). They observe production separately
 from the image and are not enabled simply by pulling a new image.
+
+## Build and dependency policy
+
+Daily CI checks the latest stable, non-prerelease DepotDownloader release,
+refreshes FEX/APT and the official RootFS manifest, runs shell/unit checks and
+native ARM64 guest/ownership smoke tests, then publishes **only from `main`**.
+PRs test without publishing. CI smoke tests are not full game-session tests.
+
+Dependabot checks Docker/Actions daily; eligible patch/minor updates use
+auto-merge after required checks. Major/LTS upgrades are deliberately reviewed,
+not silently adopted. The GHCR package must be public for anonymous pulls, or
+Docker needs registry credentials.
+
+Pulling or publishing an image does not replace running containers or installed
+host helpers. See [scheduled maintenance](../docs/maintenance.md) for deployment,
+backup/rollback and updating those scripts separately.
 
 Sources: [FEX prerequisites](https://github.com/FEX-Emu/FEX#prerequisites),
 [official RootFS manifest](https://rootfs.fex-emu.gg/RootFS_links.json),

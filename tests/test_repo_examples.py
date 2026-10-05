@@ -16,10 +16,17 @@ class DocumentationTests(unittest.TestCase):
                      *ROOT.glob('docs/*.md'), *ROOT.glob('ops/diagnostics/*.md')]
         for document in documents:
             for target in re.findall(r'\]\(([^\s)]+)\)', document.read_text()):
-                if '://' in target or target.startswith('#'):
+                if '://' in target:
                     continue
                 with self.subTest(document=document.name, target=target):
-                    self.assertTrue((document.parent / target.split('#', 1)[0]).exists())
+                    path, _, anchor = target.partition('#')
+                    destination = document.parent / path if path else document
+                    self.assertTrue(destination.is_file())
+                    if anchor:
+                        headings = re.findall(r'^#{1,6} (.+)$', destination.read_text(), re.MULTILINE)
+                        slugs = [re.sub(r'[^\w\- ]', '', heading.lower()).replace(' ', '-')
+                                 for heading in headings]
+                        self.assertIn(anchor, slugs)
 
     def test_diagnostics_python_syntax(self):
         for path in (ROOT / 'ops/diagnostics').glob('*.py'):
@@ -52,6 +59,12 @@ class ComposeTests(unittest.TestCase):
         self.assertNotIn('UPDATE_GATE_ENABLED', service['environment'])
         self.assertEqual(service['logging']['options']['max-file'], '3')
         self.assertEqual(len(service['volumes']), 5)
+
+    def test_quick_start_storage_matches_example(self):
+        service = self.render()
+        self.assertEqual({volume['source'] for volume in service['volumes']},
+                         {f'/srv/corekeeper/{name}' for name in
+                          ('server-data', 'server-files', 'fex-cache', 'mesa-cache', 'update-control')})
 
     def test_sample_environment_startup_updates(self):
         service = self.render((ROOT / 'docker-compose-example/core.env.example').read_text())
