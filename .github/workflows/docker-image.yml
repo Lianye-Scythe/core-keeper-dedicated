@@ -18,6 +18,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Classify changed files
+    runs-on: ubuntu-24.04
+    outputs:
+      image: ${{ steps.classify.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Decide whether an image build is required
+        id: classify
+        env:
+          CHANGE_EVENT: ${{ github.event_name }}
+          CHANGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CHANGE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 -B .github/scripts/image-changes.py
   lint:
     name: Shell script checks
     runs-on: ubuntu-24.04
@@ -29,6 +45,8 @@ jobs:
           python3 -B -m unittest discover -s tests -p 'test_*.py' -v
   releases:
     name: Resolve stable dependencies
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
     runs-on: ubuntu-24.04
     outputs:
       depot: ${{ steps.depot.outputs.version }}
@@ -42,9 +60,10 @@ jobs:
           version=${version#DepotDownloader_}
           [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
-  fex:
-    name: Build and smoke-test FEX ARM64
-    needs: [lint, releases]
+  image:
+    name: Build FEX ARM64 image
+    needs: [changes, lint, releases]
+    if: needs.changes.outputs.image == 'true'
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7.0.1
@@ -90,3 +109,33 @@ jobs:
           docker push "$image:fex-${COMMIT}"
           docker push "$image:fex"
           docker push "$image:latest"
+  fex:
+    # Preserve the existing required-check name without weakening branch protection.
+    name: Build and smoke-test FEX ARM64
+    needs: [changes, lint, releases, image]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify required checks or a documentation-only skip
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          IMAGE_REQUIRED: ${{ needs.changes.outputs.image }}
+          RELEASES_RESULT: ${{ needs.releases.result }}
+          IMAGE_RESULT: ${{ needs.image.result }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          test "$LINT_RESULT" = success
+          case "$IMAGE_REQUIRED" in
+            true)
+              test "$RELEASES_RESULT" = success
+              test "$IMAGE_RESULT" = success
+              echo "Image build and smoke tests passed."
+              ;;
+            false)
+              test "$RELEASES_RESULT" = skipped
+              test "$IMAGE_RESULT" = skipped
+              echo "Documentation-only change: checks passed; no image built or published."
+              ;;
+            *) exit 1 ;;
+          esac

@@ -66,7 +66,12 @@ from the image and are not enabled simply by pulling a new image.
 Daily CI checks the latest stable, non-prerelease DepotDownloader release,
 refreshes FEX/APT and the official RootFS manifest, runs shell/unit checks and
 native ARM64 guest/ownership smoke tests, then publishes **only from `main`**.
-PRs test without publishing. CI smoke tests are not full game-session tests.
+PRs test without publishing. Known documentation-only changes run shell/unit
+checks but skip dependency resolution, image builds and publication. Runtime,
+test, workflow and unknown file changes still build; daily scheduled and manual
+runs always build. An always-running final check validates either a successful
+build or a documentation-only skip without changing branch protection.
+CI smoke tests are not full game-session tests.
 
 Dependabot checks Docker/Actions daily; eligible patch/minor updates use
 auto-merge after required checks. Major/LTS upgrades are deliberately reviewed,
