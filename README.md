@@ -1,5 +1,8 @@
 # Core Keeper Dedicated Server · FEX ARM64
 
+<!-- Keep setup commands, defaults, safety guidance and guide coverage aligned
+     with docs/README.zh-TW.md in the same PR. Detailed guides are English-only. -->
+
 Run a Core Keeper dedicated server on ARM64 Linux, including Oracle Cloud Ampere A1,
 using Docker and FEX to execute the x86-64 game.
 
@@ -37,6 +40,14 @@ for its supported variants.
 
 ## Quick start
 
+### Prerequisites
+
+Have an ARM64 Linux host with terminal/SSH access, outbound connectivity for the
+registry, Steam downloads and Steam services, and enough RAM and disk space for
+the image, game files, saves and backups. Host provisioning and Docker installation
+are outside this guide. If you already have a suitable x86-64 host, a native server
+may be a better fit than translation.
+
 For a new server, use an ARM64 Linux host with rootful Docker and a recent Docker
 Compose plugin **2.24.0 or newer** supporting optional `env_file` entries. These steps use
 `/srv/corekeeper` and check for game updates at startup. For another disk,
@@ -55,6 +66,8 @@ id -g
 
 Edit `core.env`: set `PUID` and `PGID` to the positive numeric IDs printed above,
 and choose `WORLD_NAME`. Leave `GAME_ID` empty to generate a join ID.
+Use a regular account intended to own the data. Keep `core.env` private: never
+commit passwords, API keys or webhooks to GitHub.
 Use `sudo` for Docker commands below if your account needs it.
 
 ### 2. Create the data directories and start
@@ -63,11 +76,14 @@ Use `sudo` for Docker commands below if your account needs it.
 sudo mkdir -p /srv/corekeeper/{server-data,server-files,fex-cache,mesa-cache,update-control}
 docker compose config --quiet
 docker compose up -d
+docker logs --tail 100 -f core-keeper-dedicated
 ```
 
 The entrypoint prepares directory ownership, then runs the game as an
 unprivileged user. The first start downloads the game and creates a world;
 allow several minutes and watch the logs instead of repeatedly restarting.
+Pressing `Ctrl+C` stops following logs, not the server. To use another disk,
+change the Compose bind-source paths before starting; do not move live saves.
 
 > [!WARNING]
 > Content activation is opt-in (`ACTIVATE_ALL_CONTENT=false`). Before enabling
@@ -77,7 +93,6 @@ allow several minutes and watch the logs instead of repeatedly restarting.
 ### 3. Find your join ID
 
 ```sh
-docker logs --tail 100 core-keeper-dedicated
 docker exec core-keeper-dedicated cat /home/steam/core-keeper-dedicated/GameID.txt
 ```
 
@@ -89,8 +104,13 @@ port is unnecessary for this mode. For IP-based joining, see
 
 ## Common settings
 
-Edit `docker-compose-example/core.env`, then run `docker compose up -d` from
-that directory to recreate the container when its configuration changes.
+Edit `docker-compose-example/core.env`, then run this from that directory to
+recreate the container when its configuration changes:
+
+```sh
+docker compose up -d
+```
+
 `docker compose restart` does not reload environment settings.
 
 | Setting | Example default | Purpose |
@@ -100,6 +120,8 @@ that directory to recreate the container when its configuration changes.
 | `WORLD_INDEX` | `0` | Save slot; switching slots does not change the game version |
 | `GAME_ID` | Empty | Generate a join ID, or set a valid custom one |
 | `MAX_PLAYERS` | `8` | Player limit |
+| `ACTIVATE_ALL_CONTENT` | `false` | Opt-in content activation; back up existing worlds first |
+| `UPDATE_GATE_ENABLED` | `false` | Enable only after configuring the host updater |
 
 See [all configuration options](docs/configuration.md) for seeds, world modes,
 content activation, direct connections, mods, Discord and runtime/cache settings.
@@ -116,6 +138,7 @@ only during a chosen window. Its example uses **04:00 UTC** and retains
 **two backups**. It compares game and image contents, stops the server for a
 consistent backup, verifies the new startup and attempts rollback if it fails.
 An unchanged server is not restarted.
+Configure the timezone and hour for your own needs; 04:00 UTC is only an example.
 
 > [!IMPORTANT]
 > Enable the update gate only after configuring the host updater. Its backups
@@ -124,6 +147,21 @@ An unchanged server is not restarted.
 > separately from the container image.
 
 ## Documentation
+
+### Mods and compatibility
+
+The inherited mod.io installer is disabled by default. Supply API settings, a mod
+list and dependencies explicitly. Each startup clears the managed Mods directory
+and downloads the selected mods again; do not install files manually there.
+Unpinned mods can change at any startup, outside the host maintenance window.
+Not every mod has been verified under FEX; see [mod settings](docs/configuration.md#discord-and-mods).
+
+For problems, read [troubleshooting](docs/troubleshooting.md) and report the game
+version, host environment and sanitized logs in
+[GitHub Issues](https://github.com/Lianye-Scythe/core-keeper-dedicated-fex/issues).
+Never publish credentials or private connection details.
+
+### Detailed guides (English)
 
 | Guide | Contents |
 | --- | --- |
