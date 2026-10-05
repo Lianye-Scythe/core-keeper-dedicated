@@ -40,4 +40,4 @@ services:
       FEX_SMCCHECKS: "1"
       # Startup updates are the default. Set UPDATE_GATE_ENABLED=true in core.env
       # only after installing the host maintenance timer; see the README.
-      ACTIVATE_ALL_CONTENT: "true"
+      # Content activation is opt-in; configure it in core.env after backing up.

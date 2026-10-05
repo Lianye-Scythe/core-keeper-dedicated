@@ -1,7 +1,7 @@
 # Scheduled maintenance
 
 The [host updater](../fex/update.py) checks hourly and applies detected changes at
-**17:00 Asia/Taipei** with the example configuration.
+**04:00 UTC** with the example configuration.
 Both the timezone and maintenance hour are configurable; this is not an automatic
 feature of pulling the image or starting Compose. There is no restart when game build and image contents are
 unchanged. Image comparison includes installed packages, scripts, downloader and
@@ -19,7 +19,7 @@ Run the helper-install commands from the **repository root**, not from
 real paths. Do not run a second updater against the same world or replace host
 helpers during an active transaction.
 
-1. Set `UPDATE_GATE_ENABLED=true`, `ACTIVATE_ALL_CONTENT=true`, and bind a writable
+1. Set `UPDATE_GATE_ENABLED=true` and bind a writable
    `update-control` directory to `/run/corekeeper-update`. Ensure its ownership
    matches `PUID`/`PGID`.
    For Compose, edit `core.env` and use `docker compose up -d` to apply changed
@@ -38,13 +38,19 @@ sudo install -m 0600 examples/scheduled-updates/corekeeper-update-check.json.exa
 ```
 
 3. Edit `/etc/corekeeper-update-check.json`: set the real base directory and the
-   mounted filesystem it lives on (`required_mountpoint`, e.g. `/data`). It must
+   mounted filesystem it lives on (`required_mountpoint`, e.g. `/data`). Also
+   confirm `container`, `timezone` and `maintenance_hour` explicitly. For example,
+   Taiwan 17:00 uses `timezone=Asia/Taipei` and `maintenance_hour=17`; the public
+   example's 04:00 UTC is just an example, not a required time. It must
    already contain all four data/cache directories. Host dependencies are Python
    3.10+, Docker, GNU tar and systemd; the image has the download dependencies.
    `required_mountpoint` must be an actual mounted filesystem, **not merely a
    directory**. On the managed separate data disk, use `base=/data/corekeeper`
    and `required_mountpoint=/data`; change every Compose bind source accordingly.
-   A normal `/srv/corekeeper` directory is not itself a mountpoint. This safeguard
+   For the quick-start directory on the system filesystem, the example uses
+   `base=/srv/corekeeper` and `required_mountpoint=/`. If using a separate disk,
+   require that disk's actual mountpoint instead. A normal `/srv/corekeeper`
+   directory is not itself a mountpoint. This safeguard
    prevents starting maintenance on the system disk when the data disk is absent.
 4. Enable the timer:
 
@@ -61,7 +67,7 @@ Maintenance gracefully stops the game, verifies a full archive of **all
 `server-data` slots plus `server-files`**, then starts the candidate image and
 updates the game when permitted. The binaries are included so a failed game
 upgrade can really be rolled back. Caches/RootFS are excluded. Retention is one
-or two archives (`backup_keep`); the managed host uses two. During an update a
+or two archives (`backup_keep`); the example uses two. During an update a
 temporary third archive can exist until the transaction finishes.
 
 These are **update-triggered backups**, not daily save backups. If nothing

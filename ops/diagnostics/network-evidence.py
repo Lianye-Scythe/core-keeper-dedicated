@@ -15,8 +15,12 @@ import subprocess
 import sys
 import time
 
-BASE = Path('/data/corekeeper/diagnostics/network')
-CONTAINER = 'core-keeper-dedicated'
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import host_config
+
+HOST_BASE = host_config.DEFAULT_BASE
+BASE = HOST_BASE / 'diagnostics/network'
+CONTAINER = host_config.DEFAULT_CONTAINER
 INTERVAL = 15
 LOG_CAP = 8 * 1024**2
 TAIL_CAP = 128 * 1024
@@ -206,7 +210,7 @@ def game_pid():
 def log_paths(state):
     root = Path('/proc') / str(state.get('state', {}).get('Pid', 0)) / 'root'
     steam = root / 'home/steam/Steam/logs'
-    logs = list(Path('/data/corekeeper/server-files/logs').glob('*.log'))
+    logs = list((HOST_BASE / 'server-files/logs').glob('*.log'))
     paths = {'steam-connectivity': steam / 'connection_log.txt',
              'steam-cm': steam / 'connection_log_27015.txt'}
     if logs:
@@ -295,8 +299,6 @@ class Recorder:
 
 
 def run(once=False):
-    if not os.path.ismount('/data'):
-        raise RuntimeError('/data is not mounted')
     os.umask(0o077)
     BASE.mkdir(parents=True, mode=0o700, exist_ok=True)
     BASE.chmod(0o700)
@@ -346,4 +348,9 @@ def run(once=False):
 
 
 if __name__ == '__main__':
+    host = host_config.load()
+    host_config.check_storage(host)
+    HOST_BASE = Path(host['base'])
+    BASE = HOST_BASE / 'diagnostics/network'
+    CONTAINER = host['container']
     run(once='--once' in sys.argv)

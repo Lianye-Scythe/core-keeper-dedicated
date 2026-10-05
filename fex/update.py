@@ -251,7 +251,7 @@ def maintain(config, force=False):
     base = Path(config['base'])
     validate_paths(base, config['required_mountpoint'])
     name = config['container']
-    keep, hour = config.get('backup_keep', 2), config.get('maintenance_hour', 17)
+    keep, hour = config.get('backup_keep', 2), config.get('maintenance_hour', 4)
     if keep not in (1, 2) or not isinstance(hour, int) or not 0 <= hour <= 23:
         raise ValueError('Invalid backup retention or maintenance hour')
     state_dir = base / 'update-state'
@@ -292,7 +292,7 @@ def maintain(config, force=False):
     pending = dict(game_build=build, image=candidate, image_changed=image_changed,
                    game_changed=game_changed, gate_mount_migration=migration)
     atomic_json(state_dir / 'pending.json', pending)
-    zone = ZoneInfo(config.get('timezone', 'Asia/Taipei'))
+    zone = ZoneInfo(config.get('timezone', 'UTC'))
     if not force and dt.datetime.now(zone).hour != hour:
         log(f'Queued changes for the next {zone.key} {hour:02}:00: {pending}')
         return
