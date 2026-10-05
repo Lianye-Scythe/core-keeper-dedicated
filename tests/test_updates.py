@@ -63,7 +63,7 @@ class UpdateTests(unittest.TestCase):
             image = args[3]
             info = dict(Id='new-image' if image == 'image:fex' else image,
                         Config=dict(Env=self.info['Config']['Env']),
-                        RepoDigests=['image@sha256:123'])
+                        RepoDigests=['registry.example/game@sha256:' + 'a' * 64])
             return subprocess.CompletedProcess(args, 0, json.dumps([info]), '')
         if args[:2] == ['docker', 'create']:
             if self.fault == 'create':
@@ -105,6 +105,9 @@ class UpdateTests(unittest.TestCase):
         state = json.loads((self.base / 'update-state/installed.json').read_text())
         self.assertEqual(state['game_build'], '101')
         self.assertFalse((self.base / 'update-state/transaction.json').exists())
+        previous = json.loads((self.base / 'update-state/previous.json').read_text())
+        self.assertEqual(previous['image'], 'old-image')
+        self.assertEqual(previous['repo_digests'], ['registry.example/game@sha256:' + 'a' * 64])
         archive, = (self.base / 'backups').glob('*.tar.gz')
         update.validate_archive(archive)
         with tarfile.open(archive) as saved:
@@ -167,6 +170,44 @@ class UpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unexpected mount'):
             self.perform(force=True)
         self.assertFalse(any(command[:2] == ['docker', 'stop'] for command in self.commands))
+
+    def test_content_activation_preserved_or_defaults_to_false(self):
+        original = self.info['Config']['Env']
+        for value in ('false', 'true', None):
+            with self.subTest(value=value):
+                self.info['Config']['Env'] = [v for v in original if not v.startswith('ACTIVATE_ALL_CONTENT=')]
+                if value is not None:
+                    self.info['Config']['Env'].append('ACTIVATE_ALL_CONTENT=' + value)
+                with patch.object(update, 'run', side_effect=self.fake_run):
+                    args = update.replacement_args(self.info, 'new-image', self.base)
+                self.assertIn('ACTIVATE_ALL_CONTENT=' + (value or 'false'), args)
+                self.assertEqual(sum(v.startswith('ACTIVATE_ALL_CONTENT=') for v in args), 1)
+
+    def test_successful_update_does_not_activate_content(self):
+        self.info['Config']['Env'] = ['ACTIVATE_ALL_CONTENT=false' if v.startswith('ACTIVATE_ALL_CONTENT=')
+                                    else v for v in self.info['Config']['Env']]
+        self.perform(force=True)
+        create, = (args for args in self.commands if args[:2] == ['docker', 'create'])
+        self.assertIn('ACTIVATE_ALL_CONTENT=false', create)
+        self.assertNotIn('ACTIVATE_ALL_CONTENT=true', create)
+
+    def test_local_only_image_has_no_fake_pull_reference(self):
+        response = subprocess.CompletedProcess([], 0, '[{"RepoDigests": []}]', '')
+        with patch.object(update, 'run', return_value=response):
+            self.assertEqual(update.image_repo_digests('sha256:local'), [])
+
+    def test_registry_digests_are_validated_and_deduplicated(self):
+        ref = 'registry.example/game@sha256:' + 'a' * 64
+        response = subprocess.CompletedProcess([], 0, json.dumps([{'RepoDigests': [ref, ref, 'sha256:local', None]}]), '')
+        with patch.object(update, 'run', return_value=response):
+            self.assertEqual(update.image_repo_digests('old-image'), [ref])
+
+    def test_interrupted_rollback_journal_records_registry_reference(self):
+        with self.assertRaisesRegex(RuntimeError, 'Rollback did not become ready'):
+            self.perform(force=True, ready=[False, False])
+        transaction = json.loads((self.base / 'update-state/transaction.json').read_text())
+        self.assertEqual(transaction['previous_repo_digests'], ['registry.example/game@sha256:' + 'a' * 64])
+        self.assertEqual(transaction['previous_image'], 'old-image')
 
     def test_custom_network_rejected(self):
         self.info['HostConfig']['NetworkMode'] = 'custom-network'

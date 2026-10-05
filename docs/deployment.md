@@ -7,14 +7,15 @@ This guide covers storage choices and alternative deployment methods.
 
 Use ARM64 Linux with rootful Docker. AMD64 images are not built by this fork;
 rootless Docker is not part of the validated deployment. The Compose example
-requires a recent plugin supporting optional `env_file` entries.
+requires Compose **2.24.0 or newer** for optional `env_file` entries
+([Docker documentation](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/)).
 
 The public example uses these five bind mounts:
 
 | Host path | Container path | Contents |
 | --- | --- | --- |
-| `/srv/corekeeper/server-data` | `/home/steam/core-keeper-data` | Worlds, server settings and join ID |
-| `/srv/corekeeper/server-files` | `/home/steam/core-keeper-dedicated` | Installed game binaries |
+| `/srv/corekeeper/server-data` | `/home/steam/core-keeper-data` | Worlds and persistent game/server configuration |
+| `/srv/corekeeper/server-files` | `/home/steam/core-keeper-dedicated` | Installed game binaries, logs, `GameID.txt` and `GameInfo.txt` |
 | `/srv/corekeeper/fex-cache` | `/home/steam/.cache/fex` | FEX cache location; does not itself enable disk caching |
 | `/srv/corekeeper/mesa-cache` | `/home/steam/.cache/mesa_shader_cache` | Mesa shader cache |
 | `/srv/corekeeper/update-control` | `/run/corekeeper-update` | Host updater's temporary update permit |

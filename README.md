@@ -36,7 +36,7 @@ for its supported variants.
 ## Quick start
 
 For a new server, use an ARM64 Linux host with rootful Docker and a recent Docker
-Compose plugin supporting optional `env_file` entries. These steps use
+Compose plugin **2.24.0 or newer** supporting optional `env_file` entries. These steps use
 `/srv/corekeeper` and check for game updates at startup. For another disk,
 existing saves or plain Docker, see [deployment options](docs/deployment.md).
 

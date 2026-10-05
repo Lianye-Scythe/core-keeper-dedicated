@@ -97,7 +97,16 @@ For a selected archive, check `gzip -t` and `tar -tzf` before any recovery. List
 an archive is not permission to extract it over a running world. Restoration
 requires the game stopped, an appropriate game image/binaries, and reviewed paths;
 never blindly use an old join ID or reset a save slot to hide a failed restore.
-Deleted images may need pulling again by their recorded immutable digest.
+For manual rollback, `previous.json.image` is a **local image ID**, not a registry
+pull reference. New records include `repo_digests` such as
+`registry/repository@sha256:...`; only those references can be used to pull a
+missing image. Historical records may not have them, and the registry may no
+longer retain the image. Do not assume `docker pull sha256:<local-image-id>` can
+recover it, or substitute an arbitrary current image for an old world backup.
+
+Automatic rollback during an update keeps the original container until the
+candidate is verified. This is separate from manually returning to an older
+version after an update has already completed.
 
 Archives contain **all world slots plus game binaries**, not just the selected
 slot. They exclude caches and the container RootFS. Only actual maintenance makes
