@@ -7,6 +7,19 @@ feature of pulling the image or starting Compose. There is no restart when game 
 unchanged. Image comparison includes installed packages, scripts, downloader and
 guest RootFS provenance; rebuild timestamps/labels alone are ignored.
 
+Each check first resolves the registry's Linux ARM64 manifest, without downloading
+image layers. A new manifest is downloaded once to compare contents. If it is
+equivalent to the running image, the updater records that manifest/current-image
+pair and removes the unused duplicate instead of restarting. Subsequent checks
+of the same pair skip the download. A changed registry manifest or running image
+invalidates this equivalence; actual content changes still wait for the configured
+maintenance window. Registry failures fail closed and are retried next time.
+
+Deduplication never forces deletion, removes other repositories' tags, or touches
+images used by containers or the recorded previous rollback image. Those cases
+can retain extra disk usage. Genuine updates can temporarily require both images,
+and the previous rollback image remains protected. This is not global Docker pruning.
+
 The updater supports the documented rootful Docker deployment with default bridge
 network and the five bind mounts. It preserves the Game ID, selected world, name,
 user overrides, memory limits and published ports. Unsupported configurations are
