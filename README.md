@@ -3,6 +3,8 @@
 Run a Core Keeper dedicated server on ARM64 Linux, including Oracle Cloud Ampere A1,
 using Docker and FEX to execute the x86-64 game.
 
+[繁體中文：Oracle Cloud A1 / ARM64 伺服器架設教學](docs/README.zh-TW.md)
+
 [![Build](https://github.com/Lianye-Scythe/core-keeper-dedicated-fex/actions/workflows/docker-image.yml/badge.svg?branch=main)](https://github.com/Lianye-Scythe/core-keeper-dedicated-fex/actions/workflows/docker-image.yml)
 
 [Get started](#quick-start) · [Configuration](docs/configuration.md) ·
