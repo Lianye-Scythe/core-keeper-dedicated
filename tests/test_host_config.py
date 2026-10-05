@@ -23,6 +23,11 @@ class HostSettingsTests(unittest.TestCase):
         self.assertEqual(config['required_mountpoint'], '/')
         self.assertEqual(config['timezone'], 'UTC')
 
+    def test_incomplete_or_non_object_config_rejected(self):
+        for config in ({}, [], None, {'base': '/srv/corekeeper'}):
+            with self.subTest(config=config), self.assertRaises(ValueError):
+                host.validate(config)
+
     def test_dedicated_mount_at_base_is_valid(self):
         config = self.settings()
         config['required_mountpoint'] = config['base']

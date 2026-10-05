@@ -22,6 +22,8 @@ def safe_path(value):
 
 
 def validate(config):
+    if not isinstance(config, dict) or not {'base', 'required_mountpoint', 'container'} <= config.keys():
+        raise ValueError('Host settings must contain base, required_mountpoint and container')
     config = dict(config)
     base = safe_path(config['base'])
     mount = safe_path(config['required_mountpoint'])
