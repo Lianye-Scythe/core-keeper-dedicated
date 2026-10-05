@@ -24,8 +24,8 @@ a documentation rename.
    world slot. Give FEX and Mesa their own cache directories; old Box64 caches
    are not reusable FEX caches.
 4. Review [configuration precedence](configuration.md) before starting. In
-   particular, the public Compose example enables all content, which can
-   permanently alter an existing world.
+   particular, content activation is opt-in; enabling it can permanently alter
+   an existing world. New examples use `core.env`, not the removed legacy `.env`.
 5. Start only the new container, wait for initialization, and verify joining,
    world contents and saving. Do not run both containers on the same writable saves.
 
@@ -40,6 +40,16 @@ Container images do not replace installed host scripts or timers. Review and
 update those separately using [maintenance instructions](maintenance.md) and
 the [diagnostic installer guide](../ops/diagnostics/README.md). Preserve the host's
 private configuration and paths; do not overwrite them with example values.
+
+The host tools now share `/etc/corekeeper-update-check.json`. Before upgrading
+the diagnostic installer/bootstrap, make sure `base`, `container` and
+`required_mountpoint` match the running deployment. Keep your existing timezone,
+maintenance hour and owner IDs. Legacy bootstrap users can explicitly add
+`game_env_file=/etc/corekeeper-fex.env` and their `image_ref_file` path to this
+JSON instead of renaming private files. See the [shared host settings](../ops/diagnostics/README.md#shared-host-configuration).
+Changes to these settings require reinstalling diagnostic drop-ins and restarting
+only the observers; editing paths without regenerating the service permissions
+will not migrate an existing installation.
 
 For rollback, keep the old image digest and stopped-server backup together.
 Restore matching game binaries and saves rather than guessing whether a world

@@ -48,13 +48,14 @@ directories and a different Game ID. Never bind the production saves into two
 running containers. Keep game build, resource limits and world contents equal
 when making performance comparisons.
 
-## Managed deployment
+## Configured host deployment
 
-[`run-production.sh`](run-production.sh) is an optional managed `/data/corekeeper` bootstrap, using a
-root-owned `/etc/corekeeper-fex.env` and an immutable image reference in
-`/data/corekeeper/ops/fex-image-ref`. It refuses to replace an existing container
-and never resets saves. The scheduled updater preserves settings from the current
-container rather than hardcoding this host's private join ID into the repository.
+[`run-production.sh`](run-production.sh) is an optional configured bootstrap.
+Deployment and diagnostics share `/etc/corekeeper-update-check.json`; paths,
+container name and optional resource limits are not tied to a particular VPS.
+See the [deployment guide](../docs/deployment.md#configured-host-bootstrap).
+It refuses to replace an existing container and never resets saves. The
+scheduled updater preserves settings from the current container.
 
 Optional host collectors and retention templates are documented under
 [ops/diagnostics](../ops/diagnostics/README.md). They observe production separately

@@ -62,7 +62,7 @@ sudo journalctl -u corekeeper-update-check.service -n 100 --no-pager
 - Default deployment checks game downloads at startup; no host timer is installed
   automatically. Gated deployment requires the installed/enabled host timer.
 - A changed image/game is queued until the configured local maintenance hour
-  (17:00 Asia/Taipei by default); an unchanged build does not cause a restart.
+  (04:00 UTC in the public example); an unchanged build does not cause a restart.
 - Steam build metadata currently uses `api.steamcmd.net`, a third-party service.
   Metadata failure, unavailable registry, missing data mount or unsupported
   container configuration fails closed, leaving the server alone if maintenance
@@ -85,11 +85,11 @@ the previous container and pre-update files. Successful updates do not promise
 compatibility with every client/mod, so later-discovered failures need a manual
 rollback plan. Inspect private `update-state/previous.json`, any unfinished
 transaction, available images and backup archives before acting. Paths below use
-the managed disk layout; adapt them to your real base directory:
+the public example layout; adapt them to your configured base directory:
 
 ```sh
-sudo ls -lh /data/corekeeper/backups
-sudo ls -l /data/corekeeper/update-state
+sudo ls -lh /srv/corekeeper/backups
+sudo ls -l /srv/corekeeper/update-state
 docker image ls --digests
 ```
 
@@ -119,7 +119,7 @@ maintenance; do not run competing image updaters/Watchtower for this deployment.
 ## Disk usage and diagnostic limits
 
 ```sh
-df -h / /data
+df -h /srv/corekeeper
 docker system df
 sudo journalctl -u corekeeper-diagnostics-retention.service -n 30 --no-pager
 ```

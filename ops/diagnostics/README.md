@@ -1,12 +1,49 @@
-# Optional managed-host diagnostics
+# Optional host diagnostics
 
-These are source versions of the observers used on the managed Oracle A1 host.
-They are **optional**, installed on the host rather than inside the game image,
-and deliberately support one rootful Docker container named
-`core-keeper-dedicated` under `/data/corekeeper` on a mounted `/data` disk.
-Changing paths/container names requires reviewing scripts and unit files together;
-the scheduled updater itself supports a configurable base, but these templates do
-not. No private host environment files, Game IDs, dumps or raw logs are included.
+These tools are **optional**, installed on the host rather than inside the game
+image. They observe one configured rootful Docker container. Paths and the
+container name come from a shared private host configuration, not a specific
+Oracle instance. No private environment files, Game IDs, dumps or raw logs are
+included. Full kernel-core routing remains Ubuntu/Apport-specific.
+
+## Shared host configuration
+
+Deployment, maintenance and diagnostics use `/etc/corekeeper-update-check.json`.
+If the updater is already configured, **preserve that file**. Otherwise prepare
+it from the repository root:
+
+```sh
+sudo install -m 0600 examples/scheduled-updates/corekeeper-update-check.json.example /etc/corekeeper-update-check.json
+sudoedit /etc/corekeeper-update-check.json
+sudo python3 -B ops/diagnostics/host_config.py check
+```
+
+Confirm these settings before installation; creating this file does not enable
+an update timer or start a game:
+
+| Setting | Example / default | Used by |
+| --- | --- | --- |
+| `base` | `/srv/corekeeper` | All host tools; must match game bind sources |
+| `container` | `core-keeper-dedicated` | All host tools |
+| `required_mountpoint` | `/` for system-disk quick start | All host tools; use the real separate disk mount when applicable |
+| `timezone`, `maintenance_hour` | `UTC`, `4` | Updater only; choose your preferred window |
+| `game_env_file` | `/etc/corekeeper.env` when omitted | Optional bootstrap only |
+| `image_ref_file` | `<base>/ops/fex-image-ref` when omitted | Optional bootstrap only |
+| `memory_limit` | Omitted: no imposed cap | Optional bootstrap only; e.g. `10g`, also disables container swap |
+| `allow_core_dumps` | Omitted: `false` | Optional bootstrap only; `true` adds `--ulimit core=-1` |
+
+Host settings must be root-owned regular files with mode `0600`. Paths must be
+absolute and normalized without whitespace or shell/systemd escapes. The game
+base, its ancestors and managed storage directories must not be symlinks.
+Use a dedicated game directory, not a filesystem root. The installer
+checks that the configured container's save/game mounts match the base directory.
+It generates systemd storage dependencies and narrowly scoped writable-path
+drop-ins from these settings. Do not install the bare unit templates alone.
+
+After changing storage settings, stop observers, update the configuration and
+rerun the installer to regenerate drop-ins before observing the new deployment.
+Do not replace host settings or helpers during active game maintenance. Installing
+new sources does not move data or change the running game's configuration.
 
 ## What each component does
 
@@ -39,8 +76,8 @@ origin of corruption. HTTP/TCP success does not prove Steam UDP relay health.
 ## Install observers and retention
 
 Prerequisites: root access, systemd, rootful Docker, Python 3.10+, GNU `timeout`,
-`curl`, `lsof`, and the mounted managed layout. The game must already have created
-`/data/corekeeper/server-files/logs`; the installer does not initialize/reset worlds.
+`curl`, `lsof`, and the configured mounted layout. The game must already have created
+`<base>/server-files/logs`; the installer does not initialize/reset worlds.
 Run from the repository root:
 
 ```sh
@@ -61,7 +98,7 @@ does **not** change the host's global kernel core handler.
 Never install from an untrusted checkout as root. The script keeps private
 diagnostic directories root-owned (0700), files 0600, and leaves game-log directory
 ownership alone. It requires the separate data mount to avoid filling the root
-disk after a mount failure. Default units enable at boot; no notification service
+disk after a mount failure when a separate disk mount is configured. Default units enable at boot; no notification service
 or game health watchdog is installed.
 
 ## Optional full core routing — host-wide change
@@ -71,7 +108,7 @@ existing Apport pipe and its supported placeholders; it refuses to replace a
 different crash handler. It saves the current core pattern/positive pipe limit
 in a root-private configuration, forwards non-target cores to the original Apport
 command, and targets the game by command line **and the device/inode of its
-save-directory bind mount**. The current managed host uses this routing.
+save-directory bind mount**.
 
 ```sh
 sudo bash ops/diagnostics/install.sh --enable-core-routing
@@ -79,7 +116,7 @@ sudo bash ops/diagnostics/install.sh --enable-core-routing
 
 This changes `kernel.core_pattern` globally and persists it in
 `/etc/sysctl.d/90-corekeeper-crash.conf`. The router requires a kernel supporting
-the `%F` pidfd placeholder, as on the managed Ubuntu 26.04 host; do not deploy it
+the `%F` pidfd placeholder (validated on Ubuntu 26.04); do not deploy it
 blindly on older kernels. It keeps the existing positive `core_pipe_limit` rather
 than guessing a new host policy. The timeout also bounds forwarded Apport calls.
 A game core is not guaranteed: Unity may handle a signal itself, Docker may kill
@@ -87,7 +124,8 @@ the process, or space/timeout limits may prevent capture.
 
 The container must also allow kernel cores. Add `--ulimit core=-1` to Docker run,
 or the following to the Compose service, then recreate it during planned downtime
-to apply the setting. The managed bootstrap already supplies it:
+to apply the setting. For the optional bootstrap, explicitly set
+`allow_core_dumps=true` in host configuration. For Compose:
 
 ```yaml
 ulimits:
@@ -104,8 +142,8 @@ files; full diagnosis may require matching FEX/game debug symbols and expert rev
 
 ## Read evidence safely
 
-Private output lives under `/data/corekeeper/diagnostics` and optional manual
-trial output under `/data/corekeeper/runtime-test`. View service errors with:
+Private output lives under `<base>/diagnostics` and optional manual
+trial output under `<base>/runtime-test`. View service errors with:
 
 ```sh
 sudo journalctl -u corekeeper-crash-evidence.service -n 50 --no-pager
@@ -135,6 +173,5 @@ the kernel still points at it. If another administrator changed crash policy
 since installation, review rather than overwrite their changes.
 
 Disabling the timer leaves diagnostic files intact and does not affect game
-saves, backups, caches or the independent update timer. Historical trial artifact
-paths in `fex/RESULTS.md` may no longer exist after retention; the report itself
-is preserved as historical evidence.
+saves, backups, caches or the independent update timer. Historical test results
+are preserved separately in `fex/RESULTS.md`; raw trial artifacts are not public.

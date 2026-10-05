@@ -12,8 +12,12 @@ import sys
 import tarfile
 import time
 
-BASE = Path('/data/corekeeper/diagnostics')
-CONTAINER = os.environ.get('COREKEEPER_EVIDENCE_CONTAINER', 'core-keeper-dedicated')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import host_config
+
+HOST = None
+BASE = host_config.DEFAULT_BASE / 'diagnostics'
+CONTAINER = host_config.DEFAULT_CONTAINER
 CORE_CAP = 2 * 1024**3
 RAW_CAP = 16 * 1024**3
 RUNTIME_CAP = 768 * 1024**2
@@ -34,8 +38,7 @@ def write(path, value):
 
 
 def prepare():
-    if not os.path.ismount('/data'):
-        raise RuntimeError('Data disk is not mounted')
+    host_config.check_storage(HOST)
     if BASE.parent.is_symlink() or not BASE.parent.is_dir() or BASE.is_symlink():
         raise RuntimeError('Unexpected managed diagnostics directory')
     BASE.mkdir(mode=0o700, exist_ok=True)
@@ -87,7 +90,7 @@ def snapshot(bundle):
 def is_target(pid):
     try:
         root = Path(f'/proc/{pid}/root')
-        host = os.stat('/data/corekeeper/server-data')
+        host = os.stat(BASE.parent / 'server-data')
         guest = os.stat(root / 'home/steam/core-keeper-data')
         cmdline = Path(f'/proc/{pid}/cmdline').read_bytes()
         return (host.st_dev, host.st_ino) == (guest.st_dev, guest.st_ino) and b'CoreKeeperServer' in cmdline
@@ -137,7 +140,7 @@ def core(args):
     if len(args) != len(keys):
         raise ValueError('Expected all ten kernel arguments')
     values = dict(zip(keys, args))
-    if not is_target(values['P']):
+    if HOST is None or not is_target(values['P']):
         config = json.loads(Path('/etc/corekeeper-crash-router.json').read_text())
         original = config['apport_argv']
         argv = [token for token in original]
@@ -212,6 +215,15 @@ if __name__ == '__main__':
     os.umask(0o077)
     if len(sys.argv) < 2:
         raise SystemExit('Usage: crash-evidence.py core ARGS | monitor')
+    try:
+        HOST = host_config.load()
+        BASE = Path(HOST['base']) / 'diagnostics'
+        CONTAINER = HOST['container']
+    except (OSError, ValueError) as error:
+        if sys.argv[1] != 'core':
+            raise
+        # Broken host settings must not swallow unrelated system core dumps.
+        print('Host settings unavailable; forwarding core to Apport: ' + str(error), file=sys.stderr)
     if sys.argv[1] == 'core':
         core(sys.argv[2:])
     elif sys.argv[1] == 'monitor':

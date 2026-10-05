@@ -42,7 +42,7 @@ docker run -d --name core-keeper-dedicated --restart unless-stopped \
   --stop-timeout 120 \
   --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
   -e PUID=1000 -e PGID=1000 -e WORLD_NAME='Core Keeper Server' \
-  -e ACTIVATE_ALL_CONTENT=true \
+  -e ACTIVATE_ALL_CONTENT=false \
   --mount type=bind,source=/srv/corekeeper/server-data,target=/home/steam/core-keeper-data \
   --mount type=bind,source=/srv/corekeeper/server-files,target=/home/steam/core-keeper-dedicated \
   --mount type=bind,source=/srv/corekeeper/fex-cache,target=/home/steam/.cache/fex \
@@ -57,8 +57,8 @@ players need a legitimate compatible game client. Initial downloads and world
 creation can take several minutes.
 
 > [!WARNING]
-> Like the Compose example, this command enables all available content. Back up
-> existing worlds and review `ACTIVATE_ALL_CONTENT` before importing them.
+> Content activation is disabled by default. Back up existing worlds before
+> enabling `ACTIVATE_ALL_CONTENT=true`; it can permanently change them.
 
 ## Direct connections
 
@@ -93,14 +93,22 @@ Run Compose commands from `docker-compose-example`:
 Allow graceful shutdown before copying saves or replacing a container. Do not
 run independent update mechanisms against the same game installation.
 
-## Managed host bootstrap
+## Configured host bootstrap
 
 [`fex/run-production.sh`](../fex/run-production.sh) is an optional bootstrap for
-an existing managed `/data/corekeeper` installation. It uses a root-owned
-`/etc/corekeeper-fex.env` and an immutable image reference in
-`/data/corekeeper/ops/fex-image-ref`. It refuses to replace an existing container
-and does not reset saves. Its host-specific resource/ownership choices are not
-image defaults; it is not the general first-install quick start.
+prepared host installation. It reads the same root-owned
+`/etc/corekeeper-update-check.json` used by maintenance and diagnostics.
+See [host configuration](../ops/diagnostics/README.md#shared-host-configuration).
+By default it reads `/etc/corekeeper.env` and `<base>/ops/fex-image-ref`;
+both must be root-owned regular files with mode `0600`. The image reference must
+be an already-pulled ARM64 FEX digest, not a mutable tag.
+
+Prepare all five data directories first. The script refuses to replace an
+existing container and never resets saves. Owner IDs, content activation and
+update gating come from the game environment file/image defaults, not hardcoded
+host choices. No memory cap or kernel-core ulimit is imposed unless explicitly
+requested in host configuration. This wrapper is optional; Compose remains the
+recommended general setup.
 
 Next: [configuration](configuration.md), [scheduled updates](maintenance.md), or
 [troubleshooting](troubleshooting.md).

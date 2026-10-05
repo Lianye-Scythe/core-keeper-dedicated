@@ -11,8 +11,12 @@ import stat
 import subprocess
 import tempfile
 import time
+import sys
 
-BASE = Path('/data/corekeeper')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import host_config
+
+BASE = host_config.DEFAULT_BASE
 LOG_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.log(?:\.gz)?$')
 RECENT = 3600
 MIB = 1024**2
@@ -124,11 +128,15 @@ def compress_closed_logs(paths, opened, now, dry=False):
 
 
 def main():
+    global BASE
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
-    if os.geteuid() != 0 or not os.path.ismount('/data'):
-        raise RuntimeError('Requires root and mounted /data')
+    if os.geteuid() != 0:
+        raise RuntimeError('Requires root')
+    host = host_config.load()
+    host_config.check_storage(host)
+    BASE = Path(host['base'])
     roots = [BASE / 'server-files/logs', BASE / 'diagnostics', BASE / 'runtime-test']
     for root in [BASE, BASE / 'server-files', *roots]:
         if root.is_symlink() or not root.is_dir():

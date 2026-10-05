@@ -3,9 +3,9 @@
 Status: Core Keeper **successfully loaded a world** using bounded multiblock
 translation (`FEX_MULTIBLOCK=1 FEX_MAXINST=16`). This is an experimental startup
 workaround, not multiplayer or long-running stability validation. Production
-was on Box64 during the isolated trials. Later, the owner chose FEX production
-with a fresh world 0, after a short successful multiplayer test. Long-running
-stability is still unverified; see the deployment note in README.md.
+was on Box64 during the isolated trials. A subsequent short FEX multiplayer
+test succeeded. Long-running stability is still unverified; see the runtime notes
+in [README.md](README.md).
 
 Candidate: `ghcr.io/lianye-scythe/core-keeper-dedicated@sha256:624aeff81ef42c5abb4b282fc21a898a28a99650b43df73226a7030aaf2fbc8b`.
 FEX official PPA package: `fex-emu-armv8.2` version `2609.1-1~n`.
@@ -32,10 +32,8 @@ bug. The production
 crash collector deliberately scopes itself to production save files; it does not
 currently provide a full FEX-test core/backtrace.
 
-Raw logs and inspections were stored privately on the VPS under
-`/data/corekeeper/runtime-test`, including bounded previous-container evidence.
-They are subject to the host's retention policy and may have been pruned; the
-paths and image versions here describe historical trials, not current deployment
+Raw logs and inspections were stored privately and are subject to retention.
+The image versions here describe historical trials, not current deployment
 requirements or a promise that every raw artifact remains available.
 A short client gameplay test subsequently succeeded. No controlled gameplay
 performance comparison or long-running stability test has been completed.
@@ -62,9 +60,7 @@ The historical test controller used a 1-CPU cap; these timings used 2.
 That A/B controller has since been removed. The production FEX image defaults to
 bounded-16 without weakening TSO/SMC and imposes no CPU quota itself.
 
-Historical private first-run evidence: `trial-bounded16.8GBqLi`; failed-64 evidence:
-`trial-bounded64.GnZGhF`; repeat evidence: `trial-bounded16.2S4oqU`, under
-`/data/corekeeper/runtime-test` (subject to retention). Both successful trials
+Both successful trials
 were stopped by the controller after readiness (exit 143, not OOM); they are not
 unattended servers.
 

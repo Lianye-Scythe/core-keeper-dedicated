@@ -11,6 +11,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_join_id_commands_use_game_working_directory(self):
+        for path in [ROOT / 'README.md', ROOT / 'docs/troubleshooting.md']:
+            commands = re.findall(r'docker exec .*cat (\S+/GameID.txt)', path.read_text())
+            self.assertTrue(commands)
+            self.assertEqual(set(commands), {'/home/steam/core-keeper-dedicated/GameID.txt'})
+        self.assertIn('cd "${STEAMAPPDIR}"', (ROOT / 'scripts/launch.sh').read_text())
+
+    def test_obsolete_compose_env_removed(self):
+        self.assertFalse((ROOT / 'docker-compose-example/.env').exists())
+
     def test_relative_markdown_links_exist(self):
         documents = [ROOT / 'README.md', *ROOT.glob('fex/*.md'),
                      *ROOT.glob('docs/*.md'), *ROOT.glob('ops/diagnostics/*.md')]
@@ -70,6 +80,11 @@ class ComposeTests(unittest.TestCase):
         service = self.render((ROOT / 'docker-compose-example/core.env.example').read_text())
         self.assertEqual(service['environment']['UPDATE_GATE_ENABLED'], 'false')
         self.assertEqual(service['environment']['PUID'], '1000')
+        self.assertEqual(service['environment']['ACTIVATE_ALL_CONTENT'], 'false')
+
+    def test_content_activation_is_opt_in(self):
+        service = self.render('ACTIVATE_ALL_CONTENT=true\n')
+        self.assertEqual(service['environment']['ACTIVATE_ALL_CONTENT'], 'true')
 
     def test_host_gate_can_be_enabled_in_environment_file(self):
         service = self.render('UPDATE_GATE_ENABLED=true\nGAME_ID=SyntheticGameId123\n')

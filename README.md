@@ -68,15 +68,15 @@ unprivileged user. The first start downloads the game and creates a world;
 allow several minutes and watch the logs instead of repeatedly restarting.
 
 > [!WARNING]
-> The Compose example enables `ACTIVATE_ALL_CONTENT=true`. Before importing an
-> existing world, back it up and review this setting: content activation can
+> Content activation is opt-in (`ACTIVATE_ALL_CONTENT=false`). Before enabling
+> it for an existing world, back it up: content activation can
 > permanently change that world. Never share writable saves between running containers.
 
 ### 3. Find your join ID
 
 ```sh
 docker logs --tail 100 core-keeper-dedicated
-docker exec core-keeper-dedicated cat /home/steam/core-keeper-data/GameID.txt
+docker exec core-keeper-dedicated cat /home/steam/core-keeper-dedicated/GameID.txt
 ```
 
 Join through the game's multiplayer menu once the server has finished
@@ -110,7 +110,7 @@ does not replace a running container. There is no automatic timer or save backup
 until you install and configure the optional host tools.
 
 The [scheduled updater](docs/maintenance.md) can check hourly and apply changes
-only during a chosen window. Its example uses **17:00 Asia/Taipei** and retains
+only during a chosen window. Its example uses **04:00 UTC** and retains
 **two backups**. It compares game and image contents, stops the server for a
 consistent backup, verifies the new startup and attempts rollback if it fails.
 An unchanged server is not restarted.

@@ -6,7 +6,7 @@ configuration/world files are persistent in `server-data`.
 ## Defaults and precedence
 
 The table below describes **image defaults**, not every deployment example. The
-Compose example explicitly enables `ACTIVATE_ALL_CONTENT=true` and sets the tested
+Compose example keeps content activation disabled and sets the tested
 FEX runtime values. Its `environment:` entries override the same names in
 `core.env`; edit those entries in Compose when overriding them. Other variables,
 such as `GAME_ID`, `WORLD_INDEX` and `UPDATE_GATE_ENABLED`, can be set in `core.env`.
