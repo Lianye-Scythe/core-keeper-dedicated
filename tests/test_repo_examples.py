@@ -11,6 +11,49 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_shell_examples_parse_without_executing(self):
+        documents = [ROOT / 'README.md', *ROOT.glob('docs/*.md'),
+                     *ROOT.glob('fex/*.md'), ROOT / 'ops/diagnostics/README.md']
+        for document in documents:
+            for number, snippet in enumerate(re.findall(r'```(?:sh|bash)\n(.*?)\n```',
+                                                        document.read_text(), re.DOTALL)):
+                with self.subTest(document=document.name, snippet=number):
+                    result = subprocess.run(['bash', '-n'], input=snippet, text=True,
+                                            capture_output=True, timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_first_install_examples_never_overwrite_existing_config(self):
+        for document in ('docs/maintenance.md', 'ops/diagnostics/README.md'):
+            text = (ROOT / document).read_text()
+            block, = re.findall(r'(if ! sudo test -e /etc/corekeeper-update-check.json .*?\nfi)',
+                                text, re.DOTALL)
+            with tempfile.TemporaryDirectory() as temp:
+                config = Path(temp) / 'host.json'
+                script = block.replace('sudo ', '').replace('/etc/corekeeper-update-check.json', str(config))
+                def execute():
+                    subprocess.run(['bash', '-e', '-c', script], cwd=ROOT,
+                                   capture_output=True, text=True, check=True, timeout=10)
+                execute()
+                self.assertEqual(json.loads(config.read_text())['timezone'], 'UTC')
+                config.write_text('{"timezone":"Asia/Taipei","maintenance_hour":17}')
+                original = config.read_bytes()
+                execute()
+                self.assertEqual(config.read_bytes(), original)
+                config.unlink()
+                config.symlink_to(Path(temp) / 'missing')
+                execute()
+                self.assertTrue(config.is_symlink())
+                self.assertFalse(config.exists())
+
+    def test_migration_property_example_is_valid_json(self):
+        text = (ROOT / 'docs/migration.md').read_text()
+        snippet, = re.findall(r'```json\n(.*?)\n```', text, re.DOTALL)
+        self.assertEqual(json.loads(snippet)['game_env_file'], '/etc/corekeeper-fex.env')
+
+    def test_compose_minimum_version_is_explicit(self):
+        for path in (ROOT / 'README.md', ROOT / 'docs/deployment.md'):
+            self.assertIn('2.24.0', path.read_text())
+
     def test_join_id_commands_use_game_working_directory(self):
         for path in [ROOT / 'README.md', ROOT / 'docs/troubleshooting.md']:
             commands = re.findall(r'docker exec .*cat (\S+/GameID.txt)', path.read_text())

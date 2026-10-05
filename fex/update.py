@@ -115,6 +115,14 @@ def environment(info):
     return dict(item.split('=', 1) for item in info['Config']['Env'])
 
 
+def image_repo_digests(image):
+    """Registry pull references, unlike the local Docker image/config ID."""
+    info = json.loads(run(['docker', 'image', 'inspect', image]).stdout)[0]
+    return sorted({ref for ref in info.get('RepoDigests') or []
+                   if isinstance(ref, str) and
+                   re.fullmatch(r'[^\s@]+@sha256:[a-f0-9]{64}', ref)})
+
+
 def replacement_args(info, image, base):
     """Preserve the supported bind-mounted deployment; reject unknown features."""
     host, config = info['HostConfig'], info['Config']
@@ -154,7 +162,8 @@ def replacement_args(info, image, base):
         raise ValueError('Invalid selected world slot')
     env.update(COREKEEPER_RUNTIME='fex', USE_DEPOT_DOWNLOADER='true',
                UPDATE_GATE_ENABLED='true', UPDATE_PERMIT_FILE='/run/corekeeper-update/apply-update',
-               ACTIVATE_ALL_CONTENT='true', FEX_MULTIBLOCK=env.get('FEX_MULTIBLOCK', '1'),
+               ACTIVATE_ALL_CONTENT=env.get('ACTIVATE_ALL_CONTENT', 'false'),
+               FEX_MULTIBLOCK=env.get('FEX_MULTIBLOCK', '1'),
                FEX_MAXINST=env.get('FEX_MAXINST', '16'), FEX_SMCCHECKS=env.get('FEX_SMCCHECKS', '1'))
     new_info = json.loads(run(['docker', 'image', 'inspect', image]).stdout)[0]
     if 'COREKEEPER_RUNTIME=fex' not in new_info['Config'].get('Env', []):
@@ -304,8 +313,10 @@ def maintain(config, force=False):
     backup = base / 'backups' / f'corekeeper-full-{timestamp}.tar.gz'
     permit = base / 'update-control/apply-update'
     old_policy = info['HostConfig']['RestartPolicy']['Name'] or 'no'
+    previous_digests = image_repo_digests(info['Image'])
     atomic_json(transaction, dict(container=name, rollback=rollback, backup=str(backup),
-                                 previous_image=info['Image'], **pending))
+                                 previous_image=info['Image'],
+                                 previous_repo_digests=previous_digests, **pending))
     renamed = backup_valid = False
     try:
         run(['docker', 'update', '--restart=no', name])
@@ -355,7 +366,8 @@ def maintain(config, force=False):
     # after it has been removed. Errors here leave the journal for manual review.
     atomic_json(state_dir / 'installed.json', dict(game_build=observed, image=candidate,
                 fingerprint=fingerprints[candidate], updated_at=dt.datetime.now(zone).isoformat()))
-    atomic_json(state_dir / 'previous.json', dict(image=info['Image'], backup=str(backup)))
+    atomic_json(state_dir / 'previous.json', dict(image=info['Image'], backup=str(backup),
+                                                repo_digests=previous_digests))
     prune_backups(base / 'backups', keep)
     permit.unlink(missing_ok=True)
     if (base / 'ops/fex-image-ref').exists():

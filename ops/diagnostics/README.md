@@ -13,7 +13,9 @@ If the updater is already configured, **preserve that file**. Otherwise prepare
 it from the repository root:
 
 ```sh
-sudo install -m 0600 examples/scheduled-updates/corekeeper-update-check.json.example /etc/corekeeper-update-check.json
+if ! sudo test -e /etc/corekeeper-update-check.json && ! sudo test -L /etc/corekeeper-update-check.json; then
+  sudo install -m 0600 examples/scheduled-updates/corekeeper-update-check.json.example /etc/corekeeper-update-check.json
+fi
 sudoedit /etc/corekeeper-update-check.json
 sudo python3 -B ops/diagnostics/host_config.py check
 ```

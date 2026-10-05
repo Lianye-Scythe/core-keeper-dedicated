@@ -44,9 +44,19 @@ private configuration and paths; do not overwrite them with example values.
 The host tools now share `/etc/corekeeper-update-check.json`. Before upgrading
 the diagnostic installer/bootstrap, make sure `base`, `container` and
 `required_mountpoint` match the running deployment. Keep your existing timezone,
-maintenance hour and owner IDs. Legacy bootstrap users can explicitly add
-`game_env_file=/etc/corekeeper-fex.env` and their `image_ref_file` path to this
-JSON instead of renaming private files. See the [shared host settings](../ops/diagnostics/README.md#shared-host-configuration).
+maintenance hour and owner IDs. Legacy bootstrap users can add these properties
+to their existing JSON object instead of renaming private files. Adapt the paths:
+
+```json
+{
+  "game_env_file": "/etc/corekeeper-fex.env",
+  "image_ref_file": "/data/corekeeper/ops/fex-image-ref"
+}
+```
+
+This is a property example, **not a replacement for the complete configuration**;
+retain `base`, `container`, `required_mountpoint` and maintenance settings.
+See the [shared host settings](../ops/diagnostics/README.md#shared-host-configuration).
 Changes to these settings require reinstalling diagnostic drop-ins and restarting
 only the observers; editing paths without regenerating the service permissions
 will not migrate an existing installation.
