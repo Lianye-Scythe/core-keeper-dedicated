@@ -83,6 +83,7 @@ class UpdateTests(unittest.TestCase):
     def perform(self, force=False, latest='101', fingerprints=None, ready=None):
         fingerprint = fingerprints or (lambda image: image)
         with patch.object(update, 'run', side_effect=self.fake_run), \
+                patch.object(update, 'remote_image_reference', return_value='image:fex'), \
                 patch.object(update, 'inspect_container', return_value=self.info), \
                 patch.object(update, 'latest_build', return_value=latest), \
                 patch.object(update, 'image_fingerprint', side_effect=fingerprint), \
@@ -99,6 +100,70 @@ class UpdateTests(unittest.TestCase):
         self.perform(latest='100', fingerprints=lambda image: 'same')
         self.assertFalse((self.base / 'update-state/pending.json').exists())
         self.assertFalse(any(command[:2] == ['docker', 'stop'] for command in self.commands))
+
+    def test_equivalent_registry_version_is_not_downloaded_twice(self):
+        self.perform(latest='100', fingerprints=lambda image: 'same')
+        self.commands.clear()
+        self.perform(latest='100', fingerprints=lambda image: 'same')
+        self.assertFalse(any(args[:2] == ['docker', 'pull'] for args in self.commands))
+        self.assertFalse(any(args[:2] == ['docker', 'stop'] for args in self.commands))
+
+    def test_changed_registry_version_invalidates_equivalence(self):
+        update.atomic_json(self.base / 'update-state/equivalent-image.json',
+                           dict(reference='old-reference', current_image='old-image'))
+        self.perform(latest='100', fingerprints=lambda image: 'same')
+        self.assertTrue(any(args[:2] == ['docker', 'pull'] for args in self.commands))
+
+    def test_changed_running_image_invalidates_equivalence(self):
+        update.atomic_json(self.base / 'update-state/equivalent-image.json',
+                           dict(reference='image:fex', current_image='different-image'))
+        self.perform(latest='100', fingerprints=lambda image: 'same')
+        self.assertTrue(any(args[:2] == ['docker', 'pull'] for args in self.commands))
+
+    def test_equivalent_image_is_not_used_for_game_upgrade(self):
+        self.perform(latest='100', fingerprints=lambda image: 'same')
+        self.commands.clear()
+        self.perform(force=True, fingerprints=lambda image: 'same')
+        create, = (args for args in self.commands if args[:2] == ['docker', 'create'])
+        self.assertEqual(create[-1], 'old-image')
+        self.assertFalse(any(args[:2] == ['docker', 'pull'] for args in self.commands))
+
+    def test_manifest_resolution_selects_arm64_and_preserves_registry_port(self):
+        descriptor = dict(digest='sha256:' + 'b' * 64, platform=dict(os='linux', architecture='arm64'))
+        response = subprocess.CompletedProcess([], 0, json.dumps({'Descriptor': descriptor}), '')
+        with patch.object(update, 'run', return_value=response):
+            self.assertEqual(update.remote_image_reference('registry.example:5000/game:fex'),
+                             'registry.example:5000/game@sha256:' + 'b' * 64)
+        response.stdout = json.dumps([{'Descriptor': descriptor}, {'Descriptor': dict(
+            digest='sha256:' + 'c' * 64, platform=dict(os='linux', architecture='amd64'))}])
+        with patch.object(update, 'run', return_value=response):
+            self.assertEqual(update.remote_image_reference('example/game:fex'), 'example/game@sha256:' + 'b' * 64)
+
+    def test_missing_arm64_manifest_fails_closed(self):
+        response = subprocess.CompletedProcess([], 0, '{}', '')
+        with patch.object(update, 'run', return_value=response), self.assertRaises(ValueError):
+            update.remote_image_reference('example/game:fex')
+
+    def test_deduplication_protects_current_previous_and_other_containers(self):
+        state = self.base / 'update-state'
+        with patch.object(update, 'run') as run:
+            update.discard_equivalent_image(state, 'old-image', 'old-image', 'example/game@sha256:x')
+            run.assert_not_called()
+        update.atomic_json(state / 'previous.json', dict(image='previous'))
+        with patch.object(update, 'run') as run:
+            update.discard_equivalent_image(state, 'previous', 'old-image', 'example/game@sha256:x')
+            run.assert_not_called()
+        response = subprocess.CompletedProcess([], 0, 'another-container\n', '')
+        with patch.object(update, 'run', return_value=response) as run:
+            update.discard_equivalent_image(state, 'new', 'old-image', 'example/game@sha256:x')
+            self.assertEqual(run.call_count, 1)
+
+    def test_deduplication_does_not_remove_foreign_tags(self):
+        replies = [subprocess.CompletedProcess([], 0, '', ''),
+                   subprocess.CompletedProcess([], 0, '[{"RepoTags":["other/game:keep"]}]', '')]
+        with patch.object(update, 'run', side_effect=replies) as run:
+            update.discard_equivalent_image(self.base / 'update-state', 'new', 'old-image', 'example/game@sha256:x')
+            self.assertEqual(run.call_count, 2)
 
     def test_success_records_verified_build(self):
         self.perform(force=True)

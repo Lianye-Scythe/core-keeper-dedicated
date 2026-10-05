@@ -138,4 +138,8 @@ log rotation in the examples is separate from game log files. Retention protects
 open/recent files and the newest evidence; its size targets are **not hard disk
 quotas**. Warnings about protected data require inspection, not truncating active
 logs. Never use a global Docker prune to clean this one service on a shared VPS.
+An untagged image may still be the running server's image. Equivalent rebuilds
+are tracked in private `update-state/equivalent-image.json`; do not delete that
+record merely because the equivalent registry image was intentionally removed.
+Removing it makes the next check download and compare that manifest again.
 See [diagnostic limits and removal](../ops/diagnostics/README.md) for details.

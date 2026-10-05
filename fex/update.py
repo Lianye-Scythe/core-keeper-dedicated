@@ -61,6 +61,43 @@ find /home/steam/scripts /opt/depot-downloader -type f -print0 | LC_ALL=C sort -
     return hashlib.sha256((json.dumps(config, sort_keys=True) + contents).encode()).hexdigest()
 
 
+def remote_image_reference(image):
+    """Resolve ARM64 manifest metadata without downloading image layers."""
+    manifest = json.loads(run(['docker', 'manifest', 'inspect', '--verbose', image], timeout=60).stdout)
+    entries = manifest if isinstance(manifest, list) else [manifest]
+    descriptors = [entry.get('Descriptor', {}) for entry in entries]
+    matches = [item['digest'] for item in descriptors
+               if item.get('platform', {}).get('architecture') == 'arm64'
+               and item.get('platform', {}).get('os') == 'linux'
+               and re.fullmatch(r'sha256:[a-f0-9]{64}', item.get('digest', ''))]
+    if len(set(matches)) != 1:
+        raise ValueError('Registry must expose exactly one Linux ARM64 manifest')
+    repo = image.split('@', 1)[0]
+    if ':' in repo.rsplit('/', 1)[-1]:
+        repo = repo.rsplit(':', 1)[0]
+    return repo + '@' + matches[0]
+
+
+def discard_equivalent_image(state_dir, image, current, reference):
+    """Only remove this repository's unused equivalent candidate; never force."""
+    previous = state_dir / 'previous.json'
+    if image == current or (previous.exists() and json.loads(previous.read_text())['image'] == image):
+        return
+    if run(['docker', 'ps', '-aq', '--filter', 'ancestor=' + image]).stdout.strip():
+        return
+    info = json.loads(run(['docker', 'image', 'inspect', image]).stdout)[0]
+    repo = reference.split('@', 1)[0]
+    all_refs = (info.get('RepoTags') or []) + (info.get('RepoDigests') or [])
+    refs = [ref for ref in all_refs
+            if ref.startswith(repo + ':') or ref.startswith(repo + '@')]
+    if len(refs) != len(all_refs):
+        return  # Another repository/user also references this image.
+    if refs:
+        run(['docker', 'image', 'rm', *refs], check=False)
+    else:
+        run(['docker', 'image', 'rm', image], check=False)
+
+
 def cleanup_owned_images(state_dir, candidate, current):
     """Delete only superseded images this updater pulled, never global prune."""
     owned_path = state_dir / 'owned-images.json'
@@ -74,6 +111,8 @@ def cleanup_owned_images(state_dir, candidate, current):
     for image in owned:
         if image in protected:
             remaining.add(image)
+        elif 'No such image:' in run(['docker', 'image', 'inspect', image], check=False).stderr:
+            continue
         elif run(['docker', 'image', 'rm', image], check=False).returncode != 0:
             # Docker refuses removal if another container/tag still needs it.
             remaining.add(image)
@@ -275,8 +314,15 @@ def maintain(config, force=False):
     installed = installed_file.read_text().strip() if installed_file.exists() else ''
     if installed and not valid_build(installed):
         raise ValueError('Invalid installed build marker')
-    run(['docker', 'pull', config['image']], timeout=600)
-    candidate = json.loads(run(['docker', 'image', 'inspect', config['image']]).stdout)[0]['Id']
+    reference = remote_image_reference(config['image'])
+    equivalent_path = state_dir / 'equivalent-image.json'
+    equivalent = json.loads(equivalent_path.read_text()) if equivalent_path.exists() else {}
+    reuse = equivalent.get('reference') == reference and equivalent.get('current_image') == info['Image']
+    if reuse:
+        candidate = info['Image']
+    else:
+        run(['docker', 'pull', reference], timeout=600)
+        candidate = json.loads(run(['docker', 'image', 'inspect', reference]).stdout)[0]['Id']
     cache_path = state_dir / 'fingerprints.json'
     fingerprints = json.loads(cache_path.read_text()) if cache_path.exists() else {}
     for image in {info['Image'], candidate}:
@@ -284,6 +330,12 @@ def maintain(config, force=False):
             fingerprints[image] = image_fingerprint(image)
     atomic_json(cache_path, {image: fingerprints[image] for image in {info['Image'], candidate}})
     image_changed = fingerprints[info['Image']] != fingerprints[candidate]
+    if not image_changed and candidate != info['Image']:
+        atomic_json(equivalent_path, dict(reference=reference, current_image=info['Image']))
+        discard_equivalent_image(state_dir, candidate, info['Image'], reference)
+        candidate = info['Image']
+    elif image_changed:
+        equivalent_path.unlink(missing_ok=True)
     game_changed = installed != build
     migration = not any(m['Destination'] == '/run/corekeeper-update' for m in info['Mounts'])
     args = replacement_args(info, candidate, base)  # Validate before stopping.
