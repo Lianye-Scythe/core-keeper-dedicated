@@ -12,22 +12,22 @@ services:
         max-file: "3"
     # Port is only needed if using direct connection mode
     # ports:
-    #   - "$SERVER_PORT:$SERVER_PORT/udp"
+    #   - "7778:7778/udp"  # Match SERVER_PORT in core.env; it is not a Compose .env
     volumes:
       - type: bind
-        source: /host/path/to/server-files
+        source: /srv/corekeeper/server-files
         target: /home/steam/core-keeper-dedicated
       - type: bind
-        source: /host/path/to/server-data
+        source: /srv/corekeeper/server-data
         target: /home/steam/core-keeper-data
       - type: bind
-        source: /host/path/to/fex-cache
+        source: /srv/corekeeper/fex-cache
         target: /home/steam/.cache/fex
       - type: bind
-        source: /host/path/to/mesa-cache
+        source: /srv/corekeeper/mesa-cache
         target: /home/steam/.cache/mesa_shader_cache
       - type: bind
-        source: /host/path/to/update-control
+        source: /srv/corekeeper/update-control
         target: /run/corekeeper-update
     env_file:
       - path: core.env

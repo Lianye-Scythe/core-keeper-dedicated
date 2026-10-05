@@ -1,273 +1,144 @@
-# Core Keeper Dedicated Server — FEX ARM64
+# Core Keeper Dedicated Server · FEX ARM64
 
-Unofficial Docker server for **ARM64 Linux**, including Oracle Cloud Ampere A1.
-The native ARM64 container runs the x86-64 game through [FEX](https://fex-emu.com/).
-This project is independently maintained as a fork of
-[escapingnetwork/core-keeper-dedicated](https://github.com/escapingnetwork/core-keeper-dedicated).
-It is not affiliated with the game developer or FEX maintainers.
+Run a Core Keeper dedicated server on ARM64 Linux, including Oracle Cloud Ampere A1,
+using Docker and FEX to execute the x86-64 game.
 
-[![FEX image](https://github.com/Lianye-Scythe/core-keeper-dedicated-fex/actions/workflows/docker-image.yml/badge.svg?branch=main)](https://github.com/Lianye-Scythe/core-keeper-dedicated-fex/actions/workflows/docker-image.yml)
+[![Build](https://github.com/Lianye-Scythe/core-keeper-dedicated-fex/actions/workflows/docker-image.yml/badge.svg?branch=main)](https://github.com/Lianye-Scythe/core-keeper-dedicated-fex/actions/workflows/docker-image.yml)
 
-## Migration notice
+[Get started](#quick-start) · [Configuration](docs/configuration.md) ·
+[Updates & backups](docs/maintenance.md) · [Troubleshooting](docs/troubleshooting.md)
 
-This repository now supports **FEX/ARM64 only**. Box64 build variants and AMD64
-images are no longer built. For deployment continuity, the existing public package
-`ghcr.io/lianye-scythe/core-keeper-dedicated` uses `fex` and `latest` for the
-same tested ARM64 image. Its name intentionally remains unchanged when the GitHub
-repository is renamed; **its `latest` tag changes from Box64 to FEX/ARM64**.
-Existing users must review this architecture/runtime change before pulling.
-Never share writable saves between servers.
-Changing the image does not delete worlds or change a configured Game ID.
+## What this project provides
 
-## Images and compatibility
+| Feature | Included / supported |
+| --- | --- |
+| Runtime | FEX on ARM64 Linux; validated on Oracle Cloud Ampere A1 |
+| Deployment | Docker Compose with persistent saves, game files and cache directories |
+| Game installation | Anonymous Steam downloads through native ARM64 DepotDownloader |
+| Startup updates | Check and download game updates when the container starts |
+| Scheduled maintenance | Optional host updater: hourly checks, a configurable update window, backups and rollback |
+| Diagnostics | Optional host collectors with bounded retention |
 
-- `ghcr.io/lianye-scythe/core-keeper-dedicated:fex`: recommended update channel.
-- `:latest`: identical FEX/ARM64 channel, not the previous Box64 image.
-- `:fex-<commit>`: source revision label, **not immutable** across daily rebuilds.
-- `@sha256:<digest>`: immutable image reference for reproducibility/rollback.
+No privileged container or host emulator registration is needed. Players still
+need a legitimate, compatible Core Keeper client. This fork does not build AMD64
+or Box64 images; see the [original project](https://github.com/escapingnetwork/core-keeper-dedicated)
+for its supported variants.
 
-The native ARM64 container uses **Ubuntu 26.04 LTS**; its extracted x86-64 guest
-RootFS remains on **Ubuntu 24.04 LTS** from FEX's official manifest. The Docker
-host may use a different distribution/version; the container shares its kernel.
-FEX comes from
-its official stable PPA; DepotDownloader uses its latest stable, non-prerelease
-release during CI. Daily builds refresh APT/FEX and the official RootFS manifest.
-RootFS XXH3-64 is verified; URL/hash/SHA-256 are recorded in
-`/opt/fex-rootfs-source.json`. `/opt/depot-downloader-version` records the downloader.
-An LTS release upgrade is deliberately reviewed rather than silently adopted.
+> [!NOTE]
+> This is an unofficial community project. CI checks packaging and startup;
+> it cannot guarantee long-session stability or performance on every ARM64 host.
 
-The validated game-specific settings are `FEX_MULTIBLOCK=1`, `FEX_MAXINST=16`,
-with normal SMC tracking (`FEX_SMCCHECKS=1`) and default memory ordering. The block
-limit is a workaround, not an upstream default or proven optimum. Core Keeper
-1.3.0.4 has passed startup and short multiplayer play on the managed A1 host;
-**long-running stability is not yet established**. See [runtime notes](fex/README.md)
-and [historical investigation](fex/RESULTS.md). CI smoke tests are not game tests.
-
-No `--privileged`, host binfmt registration, FUSE mount or CPU affinity is needed.
-Do not add `-nographics`: world generation needs the shipped graphical path.
+> [!IMPORTANT]
+> Migrating from the original Box64 deployment? This fork's `latest` tag now
+> means FEX on ARM64. Read the [migration guide](docs/migration.md) before replacing
+> your existing container.
 
 ## Quick start
 
-Use an ARM64 host with rootful Docker. Create separate writable directories for
-`server-data`, `server-files`, `fex-cache` and `mesa-cache`, then adapt the paths in
-[the Compose example](docker-compose-example/docker-compose.yml).
+For a new server, use an ARM64 Linux host with rootful Docker and a recent Docker
+Compose plugin supporting optional `env_file` entries. These steps use
+`/srv/corekeeper` and check for game updates at startup. For another disk,
+existing saves or plain Docker, see [deployment options](docs/deployment.md).
 
-For a **new installation**, create the directories before using `--mount` (Docker
-will not create missing bind sources):
+### 1. Get the example and configure it
 
 ```sh
-sudo mkdir -p /srv/corekeeper/{server-data,server-files,fex-cache,mesa-cache,update-control}
+git clone https://github.com/Lianye-Scythe/core-keeper-dedicated-fex.git
+cd core-keeper-dedicated-fex/docker-compose-example
+cp core.env.example core.env
+chmod 600 core.env
 id -u
 id -g
 ```
 
-Use those positive numeric IDs as `PUID`/`PGID`; `1000` below is only an example.
-The rootful image entrypoint initializes ownership, then runs the game as the
-unprivileged Steam user. Do not recursively change ownership of a whole disk or
-reuse another service's directory. Existing saves should stay in their original
-data directory; these commands are not a migration/reset procedure.
+Edit `core.env`: set `PUID` and `PGID` to the positive numeric IDs printed above,
+and choose `WORLD_NAME`. Leave `GAME_ID` empty to generate a join ID.
+Use `sudo` for Docker commands below if your account needs it.
+
+### 2. Create the data directories and start
 
 ```sh
-docker run -d --name core-keeper-dedicated --restart unless-stopped \
-  --stop-timeout 120 \
-  --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
-  -e PUID=1000 -e PGID=1000 -e WORLD_NAME='Core Keeper Server' \
-  -e GAME_ID='YourOwnGameId123' -e ACTIVATE_ALL_CONTENT=true \
-  --mount type=bind,src=/srv/corekeeper/server-data,dst=/home/steam/core-keeper-data \
-  --mount type=bind,src=/srv/corekeeper/server-files,dst=/home/steam/core-keeper-dedicated \
-  --mount type=bind,src=/srv/corekeeper/fex-cache,dst=/home/steam/.cache/fex \
-  --mount type=bind,src=/srv/corekeeper/mesa-cache,dst=/home/steam/.cache/mesa_shader_cache \
-  ghcr.io/lianye-scythe/core-keeper-dedicated:fex
-```
-
-This quick start checks/downloads game updates **on startup**. To update only in
-a maintenance window, use the scheduled updater below instead. The first install
-downloads the server anonymously; players still need a legitimate compatible
-game client. Generation on A1 can take several minutes before clients can join.
-
-### Compose alternative
-
-Copy [core.env.example](docker-compose-example/core.env.example) to `core.env`
-beside the Compose file, restrict it to your account, and edit its owner IDs and
-world settings. Replace **all five** `/host/path/to/...` bind sources in the
-Compose file with the corresponding directories above:
-
-```sh
-cd docker-compose-example
-cp core.env.example core.env
-chmod 600 core.env
+sudo mkdir -p /srv/corekeeper/{server-data,server-files,fex-cache,mesa-cache,update-control}
 docker compose config --quiet
 docker compose up -d
 ```
 
-The example defaults to startup updates. **Compose alone does not install an
-hourly update schedule.** Keep `UPDATE_GATE_ENABLED=false` until you follow the
-host-updater instructions below; with the gate enabled but no host timer, an
-existing installation will not automatically download new game builds.
-Compose intentionally enables all available world content; review that setting
-before attaching an existing world. Private `core.env` files are git-ignored.
+The entrypoint prepares directory ownership, then runs the game as an
+unprivileged user. The first start downloads the game and creates a world;
+allow several minutes and watch the logs instead of repeatedly restarting.
+
+> [!WARNING]
+> The Compose example enables `ACTIVATE_ALL_CONTENT=true`. Before importing an
+> existing world, back it up and review this setting: content activation can
+> permanently change that world. Never share writable saves between running containers.
+
+### 3. Find your join ID
 
 ```sh
 docker logs --tail 100 core-keeper-dedicated
-docker exec core-keeper-dedicated cat /home/steam/core-keeper-dedicated/GameID.txt
+docker exec core-keeper-dedicated cat /home/steam/core-keeper-data/GameID.txt
 ```
 
-`GameID.txt` alone is not sufficient proof that world initialization is complete.
-The updater additionally checks current-boot world/session/simulation log markers.
-Steam Game ID mode needs outbound connectivity; no published game port is required.
-Set `SERVER_PORT` and publish its UDP port only for direct connection mode.
+Join through the game's multiplayer menu once the server has finished
+initializing. A generated ID alone is not proof that the server is ready.
+The default join-ID mode needs outbound Steam connectivity; publishing a game
+port is unnecessary for this mode. For IP-based joining, see
+[direct connections](docs/deployment.md#direct-connections).
 
-## Server settings
+## Common settings
 
-Set these environment variables in Compose or an optional `core.env`. Existing
-configuration/world files are persistent in `server-data`.
+Edit `docker-compose-example/core.env`, then run `docker compose up -d` from
+that directory to recreate the container when its configuration changes.
+`docker compose restart` does not reload environment settings.
 
-| Variable | Default | Purpose |
+| Setting | Example default | Purpose |
 | --- | --- | --- |
-| `PUID`, `PGID` | `1000` | Positive host owner IDs; do not run the game as root. |
-| `REPAIR_PERMISSIONS` | `false` | One-time repair after importing files; otherwise ownership markers avoid rescans. |
-| `WORLD_INDEX` | `0` | World slot; changing it selects/creates another save, not another game version. |
-| `WORLD_NAME` | `Core Keeper Server` | Displayed world/server name. |
-| `WORLD_SEED`, `HASHED_WORLD_SEED` | empty | New-world seeds; empty means random, not a reset of an existing world. |
-| `WORLD_MODE` | `0` | Normal `0`, Hard `1`, Creative `2`, Casual `4`. |
-| `GAME_ID` | empty | Persistent join ID; a valid ID is 15–28 alphanumeric characters. |
-| `MAX_PLAYERS` | `8` | Player limit. |
-| `ACTIVATE_ALL_CONTENT` | `false` | Activate available content for existing worlds; back up first, activation is not reversible. |
-| `ACTIVATE_CONTENT` | empty | Specific comma-separated content bundle identifiers supported by the installed game. |
-| `SEASON` | empty | Leave empty for real-date season; use the installed server's documented enum to override. |
-| `SERVER_IP`, `SERVER_PORT` | empty | Direct connection address/UDP port; setting a port changes connection mode. |
-| `PASSWORD` | empty | Direct-mode password, up to 28 characters; game may generate one when omitted/invalid. |
-| `ALLOW_ONLY_PLATFORM` | empty | Direct-mode platform filter: Steam `1`, Epic `2`, Microsoft `3`, GOG `4`. |
-| `UPDATE_GATE_ENABLED` | `false` | Require a fresh host permit for game updates, except initial installation. |
-| `UPDATE_PERMIT_FILE` | `/run/corekeeper-update/apply-update` | Permit path inside the container. |
-| `UPDATE_PERMIT_MAX_AGE_SECONDS` | `3600` | Reject stale permits. |
-| `FEX_MULTIBLOCK`, `FEX_MAXINST` | `1`, `16` | Tested Core Keeper translation settings, not upstream defaults. |
-| `FEX_APP_CACHE_LOCATION` | `/home/steam/.cache/fex/` | Persistent FEX cache location; does not enable otherwise-disabled disk caches. |
-| `MESA_SHADER_CACHE_MAX_SIZE` | `512M` | Mesa driver cache budget, not a RAM reservation or FEX cache setting. |
+| `PUID` / `PGID` | `1000` / `1000` | Host ownership for game files and saves |
+| `WORLD_NAME` | `Core Keeper Server` | Server/world display name |
+| `WORLD_INDEX` | `0` | Save slot; switching slots does not change the game version |
+| `GAME_ID` | Empty | Generate a join ID, or set a valid custom one |
+| `MAX_PLAYERS` | `8` | Player limit |
 
-`USE_DEPOT_DOWNLOADER=true` and `COREKEEPER_RUNTIME=fex` are the supported runtime;
-do not select the removed Box64/SteamCMD path. See the installed game's server
-README for version-specific flags/content identifiers rather than assuming a
-historical list is exhaustive.
+See [all configuration options](docs/configuration.md) for seeds, world modes,
+content activation, direct connections, mods, Discord and runtime/cache settings.
+Values explicitly set under Compose `environment` take precedence over `core.env`.
 
-### Discord and mods
+## Updates and data safety
 
-`DISCORD_WEBHOOK_URL` enables webhook delivery. Player join/leave and server
-start/stop switches are `DISCORD_PLAYER_JOIN_ENABLED`,
-`DISCORD_PLAYER_LEAVE_ENABLED`, `DISCORD_SERVER_START_ENABLED`, and
-`DISCORD_SERVER_STOP_ENABLED` (default `false`). Each event also supports
-`..._TITLE`, `..._MESSAGE`, and `..._COLOR` overrides; templates are implemented in
-[the log parser](scripts/logfile-parser.sh).
+By default, game updates are checked **at container startup**. Pulling a new image
+does not replace a running container. There is no automatic timer or save backup
+until you install and configure the optional host tools.
 
-For mod.io, set `MODS_ENABLED=true`, `MODIO_API_KEY`, `MODIO_API_URL`, and
-`MODS=mod-id[:version],other-mod`. Install required mod dependencies explicitly;
-client-only mods can prevent a dedicated server from starting. Mod downloads on
-startup are independent of the game/image maintenance gate; leave mods disabled
-if all changes must be confined to the maintenance window.
+The [scheduled updater](docs/maintenance.md) can check hourly and apply changes
+only during a chosen window. Its example uses **17:00 Asia/Taipei** and retains
+**two backups**. It compares game and image contents, stops the server for a
+consistent backup, verifies the new startup and attempts rollback if it fails.
+An unchanged server is not restarted.
 
-## Scheduled game and image updates
+> [!IMPORTANT]
+> Enable the update gate only after configuring the host updater. Its backups
+> include all save slots and installed game files, but are made only when applying
+> updates—not daily or off-site. Host updater and diagnostic scripts are maintained
+> separately from the container image.
 
-The [host updater](fex/update.py) checks hourly and applies detected changes at
-**17:00 Asia/Taipei**. There is no restart when game build and image contents are
-unchanged. Image comparison includes installed packages, scripts, downloader and
-guest RootFS provenance; rebuild timestamps/labels alone are ignored.
+## Documentation
 
-The updater supports the documented rootful Docker deployment with default bridge
-network and the five bind mounts. It preserves the Game ID, selected world, name,
-user overrides, memory limits and published ports. Unsupported configurations are
-rejected before stopping the server rather than silently discarded.
-
-1. Set `UPDATE_GATE_ENABLED=true`, `ACTIVATE_ALL_CONTENT=true`, and bind a writable
-   `update-control` directory to `/run/corekeeper-update`. Ensure its ownership
-   matches `PUID`/`PGID`.
-   For Compose, edit `core.env` and use `docker compose up -d` to apply changed
-   environment variables; `docker restart` alone does not change them. This may
-   recreate the container and cause downtime, but does not reset its bind-mounted
-   saves. Set up the remaining host steps in the same installation session.
-2. Install the helpers and root-owned JSON configuration:
-
-```sh
-sudo install -d /usr/local/libexec/corekeeper
-sudo install -m 0755 fex/readiness.py /usr/local/libexec/corekeeper-ready
-sudo install -m 0644 fex/update.py /usr/local/libexec/corekeeper/update.py
-sudo install -m 0755 examples/scheduled-updates/corekeeper-update-check /usr/local/sbin/
-sudo install -m 0644 examples/scheduled-updates/corekeeper-update-check.{service,timer} /etc/systemd/system/
-sudo install -m 0600 examples/scheduled-updates/corekeeper-update-check.json.example /etc/corekeeper-update-check.json
-```
-
-3. Edit `/etc/corekeeper-update-check.json`: set the real base directory and the
-   mounted filesystem it lives on (`required_mountpoint`, e.g. `/data`). It must
-   already contain all four data/cache directories. Host dependencies are Python
-   3.10+, Docker, GNU tar and systemd; the image has the download dependencies.
-   `required_mountpoint` must be an actual mounted filesystem, **not merely a
-   directory**. On the managed separate data disk, use `base=/data/corekeeper`
-   and `required_mountpoint=/data`; change every Compose bind source accordingly.
-   A normal `/srv/corekeeper` directory is not itself a mountpoint. This safeguard
-   prevents starting maintenance on the system disk when the data disk is absent.
-4. Enable the timer:
-
-```sh
-sudo systemctl daemon-reload
-sudo systemctl enable --now corekeeper-update-check.timer
-systemctl list-timers corekeeper-update-check.timer
-journalctl -u corekeeper-update-check.service -n 30
-```
-
-Maintenance gracefully stops the game, verifies a full archive of **all
-`server-data` slots plus `server-files`**, then starts the candidate image and
-updates the game when permitted. The binaries are included so a failed game
-upgrade can really be rolled back. Caches/RootFS are excluded. Retention is one
-or two archives (`backup_keep`); the managed host uses two. During an update a
-temporary third archive can exist until the transaction finishes.
-
-These are **update-triggered backups**, not daily save backups. If nothing
-changes, no new archive is created. Copies on the same disk/VPS do not protect
-against losing that disk or instance. Do not archive live saves and assume they
-are consistent; this updater stops the game before backing up.
-
-Failed startup/build certification restores the previous FEX container and the
-pre-update game/save files. A host reboot/interruption leaves a transaction
-journal and refuses further unattended maintenance until reviewed. Readiness is
-not a client-connectivity or long-running-stability guarantee. If the installed
-build is unknown, the first maintenance certifies it through a backed-up download
-instead of pretending the latest public build is already installed.
-
-Steam metadata failures fail closed without restarting. A manual
-`sudo corekeeper-update-check --force` overrides the maintenance hour; use it
-only when immediate downtime is intended. Do not run `apt upgrade` in the live
-container; deploy a tested replacement image instead.
-
-## Repository maintenance
-
-Daily CI checks the latest stable DepotDownloader, refreshes FEX/APT and official
-RootFS, runs shell/unit checks and native ARM64 guest/ownership smoke tests, then
-publishes **only from `main`**. PRs test without publishing. Dependabot checks
-Docker/Actions daily; patch/minor updates use auto-merge after required checks.
-Major/LTS changes stay under review. The GHCR package must be public for anonymous
-VPS pulls, or Docker needs registry credentials.
-
-Image publication does not automatically replace the separately installed host
-updater/readiness scripts. After reviewing changes, repeat the helper-install
-commands above on the host; do not replace them during an active transaction.
-
-## Diagnostics and troubleshooting
-
-[Troubleshooting](docs/troubleshooting.md) covers slow initialization, connection
-failures, update errors and safe rollback review. Optional
-[managed-host diagnostics](ops/diagnostics/README.md) provides bounded crash/exit
-evidence, network/CPU sampling and historical-log retention. These tools are
-**not installed by Docker or Compose**, do not send notifications, and do not
-automatically restart a server that appears hung.
-
-The diagnostic examples specifically target the existing `/data/corekeeper`
-layout with one `core-keeper-dedicated` container. They are not a generic installer
-for arbitrary host paths. Raw evidence, saves, backups and host credentials must
-remain private; the repository contains only source, templates and synthetic tests.
+| Guide | Contents |
+| --- | --- |
+| [Deployment](docs/deployment.md) | Storage, ownership, plain Docker, direct connections and lifecycle |
+| [Configuration](docs/configuration.md) | Complete settings, defaults and precedence |
+| [Scheduled maintenance](docs/maintenance.md) | Updates, backup retention, rollback and host script upgrades |
+| [Troubleshooting](docs/troubleshooting.md) | Startup failures, connection issues and safe checks |
+| [Host diagnostics](ops/diagnostics/README.md) | Optional crash/network collection, retention and privacy |
+| [Runtime and build policy](fex/README.md) | FEX settings, caches, Ubuntu environments, tags and dependencies |
+| [Migration](docs/migration.md) | Moving from Box64 or older image/repository names |
 
 ## Attribution and license
 
-Original Docker/server work: [escapingnetwork/core-keeper-dedicated](https://github.com/escapingnetwork/core-keeper-dedicated)
-and its contributors. FEX adaptation, scheduled maintenance and ongoing project
-maintenance: [Lianye-Scythe](https://github.com/Lianye-Scythe).
-Git history and original copyright notices are retained; see [MIT LICENSE](LICENSE).
-FEX, Ubuntu, DepotDownloader and Core Keeper retain their respective licenses.
+Derived from [escapingnetwork/core-keeper-dedicated](https://github.com/escapingnetwork/core-keeper-dedicated),
+with thanks to its contributors. This fork is maintained by
+[Lianye-Scythe](https://github.com/Lianye-Scythe) and retains the original history
+and attribution. Repository code is licensed under [MIT](LICENSE).
+
+Not affiliated with Pugstorm or FEX. The game and bundled third-party components
+remain subject to their respective licenses.
