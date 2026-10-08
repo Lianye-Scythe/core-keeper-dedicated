@@ -19,7 +19,6 @@ import sys
 import tarfile
 import tempfile
 import time
-from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 
@@ -120,15 +119,15 @@ def cleanup_owned_images(state_dir, candidate, current):
 
 
 def valid_build(value):
-    return isinstance(value, str) and re.fullmatch(r'[0-9]+', value) is not None
+    # Numeric markers from older deployments trigger a one-time verified upgrade.
+    return isinstance(value, str) and re.fullmatch(r'(?:manifest:1963722:)?[0-9]+', value) is not None
 
 
-def latest_build():
-    with urlopen('https://api.steamcmd.net/v1/info/1963720', timeout=30) as response:
-        data = json.load(response)
-    build = str(data['data']['1963720']['depots']['branches']['public']['buildid'])
-    if not valid_build(build):
-        raise ValueError('Invalid public Steam build ID')
+def latest_build(container):
+    helper = Path(__file__).with_name('steam-build.sh').read_text()
+    build = run(['docker', 'exec', container, 'bash', '-c', helper], timeout=180).stdout.strip()
+    if not re.fullmatch(r'manifest:1963722:[0-9]+', build):
+        raise ValueError('Invalid direct Steam Linux manifest identity')
     return build
 
 
@@ -309,7 +308,7 @@ def maintain(config, force=False):
     info = inspect_container(name)
     if not info['State']['Running']:
         raise ValueError('Server is stopped; do not override an intentional stop')
-    build = latest_build()
+    build = latest_build(name)
     installed_file = base / 'server-files/.corekeeper-buildid'
     installed = installed_file.read_text().strip() if installed_file.exists() else ''
     if installed and not valid_build(installed):
