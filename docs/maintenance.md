@@ -45,6 +45,7 @@ helpers during an active transaction.
 sudo install -d /usr/local/libexec/corekeeper
 sudo install -m 0755 fex/readiness.py /usr/local/libexec/corekeeper-ready
 sudo install -m 0644 fex/update.py /usr/local/libexec/corekeeper/update.py
+sudo install -m 0644 fex/steam-build.sh /usr/local/libexec/corekeeper/steam-build.sh
 sudo install -m 0755 examples/scheduled-updates/corekeeper-update-check /usr/local/sbin/
 sudo install -m 0644 examples/scheduled-updates/corekeeper-update-check.{service,timer} /etc/systemd/system/
 ```
@@ -122,6 +123,15 @@ Steam metadata failures fail closed without restarting. A manual
 `sudo corekeeper-update-check --force` overrides the maintenance hour; use it
 only when immediate downtime is intended. Do not run `apt upgrade` in the live
 container; deploy a tested replacement image instead.
+
+Game content detection queries Steam directly through native DepotDownloader's
+manifest-only mode, without downloading game content or restarting. The installed
+`.corekeeper-buildid` marker now records `manifest:1963722:<manifest-id>` for the
+Linux server depot, not a third-party API's numeric app build ID. Legacy numeric
+markers trigger one verified update at the maintenance window. Startup certifies
+the marker only if Steam's manifest stays unchanged across the validated download
+and the matching downloaded manifest exists. Upgrade both the image and the host
+helper block when migrating from the old API-based updater.
 
 
 ## Updating the updater itself

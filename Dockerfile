@@ -61,6 +61,7 @@ RUN userdel -r ubuntu \
     && ln -s "${STEAMAPPDIR}/linux64" "${STEAMCMDDIR}/linux64" \
     && ln -s "${STEAMAPPDIR}/linux64/steamclient.so" /home/steam/.steam/sdk64/steamclient.so
 COPY scripts /home/steam/scripts
+COPY fex/steam-build.sh /home/steam/scripts/steam-build.sh
 RUN chmod +x /home/steam/scripts/*.sh && chown -R steam:steam /home/steam
 LABEL org.opencontainers.image.title="Core Keeper dedicated server (FEX ARM64)"
 WORKDIR /home/steam

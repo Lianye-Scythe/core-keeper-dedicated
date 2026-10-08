@@ -33,10 +33,8 @@ else
 fi
 
 if [[ "${RUN_UPDATE}" == true ]]; then
-    # Certify the public build only when metadata stays stable during download.
-    build_before=$(curl --fail --silent --show-error --max-time 30 \
-        https://api.steamcmd.net/v1/info/1963720 \
-        | jq -er '.data["1963720"].depots.branches.public.buildid | tostring | select(test("^[0-9]+$"))') || build_before=""
+    # Certify the installed Linux manifest using Steam, not a cached third-party API.
+    build_before=$(bash "${SCRIPTSDIR}/steam-build.sh") || build_before=""
     rm -f "${STEAMAPPDIR}/.corekeeper-buildid"
     if [[ "${USE_DEPOT_DOWNLOADER}" == true ]]; then
         DepotDownloader -app "${STEAMAPPID}" -osarch 64 -dir "${STEAMAPPDIR}" -validate || exit $?
@@ -47,10 +45,10 @@ if [[ "${RUN_UPDATE}" == true ]]; then
         exit 1
     fi
 
-    build_after=$(curl --fail --silent --show-error --max-time 30 \
-        https://api.steamcmd.net/v1/info/1963720 \
-        | jq -er '.data["1963720"].depots.branches.public.buildid | tostring | select(test("^[0-9]+$"))') || build_after=""
-    if [[ -n "${build_before}" && "${build_before}" == "${build_after}" ]]; then
+    build_after=$(bash "${SCRIPTSDIR}/steam-build.sh") || build_after=""
+    manifest=${build_after#manifest:1963722:}
+    if [[ -n "${build_before}" && "${build_before}" == "${build_after}" \
+        && -f "${STEAMAPPDIR}/.DepotDownloader/1963722_${manifest}.manifest" ]]; then
         printf '%s\n' "${build_after}" >"${STEAMAPPDIR}/.corekeeper-buildid"
     else
         echo "Public build metadata unavailable or changed; installed build remains uncertified."

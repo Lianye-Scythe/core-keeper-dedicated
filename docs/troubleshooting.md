@@ -63,7 +63,9 @@ sudo journalctl -u corekeeper-update-check.service -n 100 --no-pager
   automatically. Gated deployment requires the installed/enabled host timer.
 - A changed image/game is queued until the configured local maintenance hour
   (04:00 UTC in the public example); an unchanged build does not cause a restart.
-- Steam build metadata currently uses `api.steamcmd.net`, a third-party service.
+- Steam metadata is queried directly with the image's native DepotDownloader,
+  using the Linux server depot's public manifest. The host updater needs its
+  companion `steam-build.sh`; reinstall the helper block when upgrading it.
   Metadata failure, unavailable registry, missing data mount or unsupported
   container configuration fails closed, leaving the server alone if maintenance
   has not started. A later timer run retries; repeated failures need review.

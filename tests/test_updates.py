@@ -348,13 +348,23 @@ class SetupGateTests(unittest.TestCase):
             path.mkdir()
         (self.scripts / 'mod-manager.sh').write_text('manage_mods() { :; }\nLogError() { echo "$*"; }\n')
         (self.scripts / 'launch.sh').write_text('exit 0\n')
+        (self.scripts / 'steam-build.sh').write_text(
+            (Path(__file__).resolve().parents[1] / 'fex/steam-build.sh').read_text())
         (self.files / 'CoreKeeperServer').write_text('old')
         (self.files / 'CoreKeeperServer').chmod(0o755)
         (self.bin / 'DepotDownloader').write_text(
-            '#!/bin/sh\nprintf "download\\n" >> "$TEST_DOWNLOADS"\nexit "${TEST_DOWNLOAD_EXIT:-0}"\n')
-        (self.bin / 'curl').write_text(
-            '#!/bin/sh\nif [ "${TEST_METADATA_FAIL:-0}" = 1 ]; then exit 1; fi\n'
-            'printf \'{"data":{"1963720":{"depots":{"branches":{"public":{"buildid":"101"}}}}}}\\n\'\n')
+            '#!/bin/bash\nset -e\nmanifest=false\ndir=""\n'
+            'while (( $# )); do case "$1" in -manifest-only) manifest=true;; '
+            '-dir) shift; dir=$1;; esac; shift; done\n'
+            'if $manifest; then\n'
+            '  [[ ${TEST_METADATA_FAIL:-0} != 1 ]] || exit 1\n'
+            '  touch "$dir/manifest_1963722_101.txt"\n'
+            'else\n'
+            '  printf "download\\n" >> "$TEST_DOWNLOADS"\n'
+            '  [[ ${TEST_DOWNLOAD_EXIT:-0} == 0 ]] || exit "$TEST_DOWNLOAD_EXIT"\n'
+            '  mkdir -p "$dir/.DepotDownloader"\n'
+            '  [[ ${TEST_MISSING_MANIFEST:-0} == 1 ]] || touch "$dir/.DepotDownloader/1963722_101.manifest"\n'
+            'fi\n')
         for path in self.bin.iterdir():
             path.chmod(0o755)
         self.permit = self.base / 'permit'
@@ -376,7 +386,7 @@ class SetupGateTests(unittest.TestCase):
         self.permit.write_text(str(int(dt.datetime.now().timestamp())) + '\n')
         self.assertEqual(self.setup().returncode, 0)
         self.assertEqual(self.downloads.read_text().splitlines(), ['download', 'download'])
-        self.assertEqual((self.files / '.corekeeper-buildid').read_text().strip(), '101')
+        self.assertEqual((self.files / '.corekeeper-buildid').read_text().strip(), 'manifest:1963722:101')
         self.assertFalse(self.permit.exists())
 
     def test_stale_permit_is_removed_without_download(self):
@@ -396,6 +406,38 @@ class SetupGateTests(unittest.TestCase):
         self.env['TEST_METADATA_FAIL'] = '1'
         self.assertEqual(self.setup().returncode, 0)
         self.assertFalse((self.files / '.corekeeper-buildid').exists())
+
+    def test_download_without_matching_manifest_does_not_certify(self):
+        self.permit.write_text(str(int(dt.datetime.now().timestamp())) + '\n')
+        self.env['TEST_MISSING_MANIFEST'] = '1'
+        self.assertEqual(self.setup().returncode, 0)
+        self.assertFalse((self.files / '.corekeeper-buildid').exists())
+
+
+class DirectSteamMetadataTests(unittest.TestCase):
+    def test_direct_query_returns_linux_manifest(self):
+        result = subprocess.CompletedProcess([], 0, 'manifest:1963722:8168256090474516152\n', '')
+        with patch.object(update, 'run', return_value=result) as run:
+            self.assertEqual(update.latest_build('test-server'), result.stdout.strip())
+            self.assertEqual(run.call_args.args[0][:4], ['docker', 'exec', 'test-server', 'bash'])
+            self.assertIn('-manifest-only', run.call_args.args[0][-1])
+
+    def test_invalid_or_cached_numeric_response_is_rejected(self):
+        for value in ('25625045', 'manifest:1963721:123', 'manifest:1963722:123\nextra', ''):
+            with self.subTest(value=value), patch.object(update, 'run', return_value=
+                    subprocess.CompletedProcess([], 0, value, '')):
+                with self.assertRaises(ValueError):
+                    update.latest_build('test-server')
+
+    def test_metadata_failure_is_not_treated_as_no_update(self):
+        with patch.object(update, 'run', side_effect=RuntimeError('Steam unavailable')):
+            with self.assertRaises(RuntimeError):
+                update.latest_build('test-server')
+
+    def test_legacy_and_manifest_markers_are_valid_but_distinct(self):
+        self.assertTrue(update.valid_build('25625045'))
+        self.assertTrue(update.valid_build('manifest:1963722:123'))
+        self.assertFalse(update.valid_build('manifest:1963721:123'))
 
 
 if __name__ == '__main__':
